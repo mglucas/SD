@@ -8,8 +8,6 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 # https://nitratine.net/blog/post/asymmetric-encryption-and-decryption-in-python/
 
-# Comentario 1 
-
 # ---------
 
 # Message

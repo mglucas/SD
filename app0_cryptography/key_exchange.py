@@ -20,7 +20,7 @@ def main():
         key_size=2048,
         backend=default_backend()
     )
-    public_key_b = private_key_a.public_key()
+    public_key_b = private_key_b.public_key()
 
     # Storing private keys
     # A

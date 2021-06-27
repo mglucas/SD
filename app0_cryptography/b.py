@@ -2,7 +2,7 @@ from inspect import signature
 from cryptography.hazmat.primitives import hashes,serialization
 from cryptography.hazmat.primitives.asymmetric import padding,rsa
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
+from cryptography.exceptions import InvalidSignature
 
 # A enviará uma mensagem para B assinando (sign()) essa mensagem com sua chave
 # privada e B verificará (verify()) a assinatura com a chave pública de A. 
@@ -16,7 +16,7 @@ message = b'encrypt me!'
 
 # A - public key
 # Loading
-with open("public_key_b.pem", "rb") as key_file:
+with open("public_key_a.pem", "rb") as key_file:
     public_key  = serialization.load_pem_public_key(
         key_file.read(),
         backend=default_backend()        
@@ -36,9 +36,9 @@ try:
             mgf=padding.MGF1(hashes.SHA256()),
             salt_length=padding.PSS.MAX_LENGTH
         ),
-    hashes.SHA256()
+        hashes.SHA256()
     )
     print("Valid signature")
-except:
+except InvalidSignature :
     print("Invalid signature")
 

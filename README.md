@@ -3,9 +3,9 @@
 ![GitHub repo size](https://img.shields.io/github/repo-size/mglucas/SD?style=for-the-badge)
 ![GitHub language count](https://img.shields.io/github/languages/count/mglucas/SD?style=for-the-badge)
 
-This repository is dedicated to the implementation of the Distributed Systems course from the Computer Engineering course at the Federal University of Technology - Paraná (UTFPR).
+This repository is dedicated to the implementation of application from the Distributed Systems course from the Computer Engineering course at the Federal University of Technology - Paraná (UTFPR).
 
-Each of the directories listed in this repository contain standalone application regarding key concepts of the course. Please refer to the README files of each directory for more details and conclusions about each project.
+Each of the directories listed in this repository contains a standalone application regarding key concepts of the course. Please refer to the README files of each directory for more details and conclusions about each project.
 
 ### Adjustments and improvements
 

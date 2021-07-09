@@ -10,6 +10,7 @@ if sys.version_info<(3,0):
 sys.excepthook = Pyro4.util.excepthook
 
 warehouse = Pyro4.Proxy("PYRONAME:example.warehouse")
+
 janet = Person("Janet")
 henry = Person("Henry")
 janet.visit(warehouse)

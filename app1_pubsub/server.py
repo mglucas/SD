@@ -49,7 +49,7 @@ class Server(object):
 
         return self.current_id
 
-    def delRideRequest(self, id ):
+    def delRideRequest(self, id):
         del_request = next(req for req in self.requests if req["id"] == id )
         self.requests.remove(del_request)
 
@@ -61,6 +61,10 @@ class Server(object):
         return [ride for ride in self.rides if (ride["origin"] == origin 
                                             and ride["destination"] == destination 
                                             and ride["date"] == date)]
+    
+    def getClientSubscriptions(self, object):
+        return ([request for request in self.requests if request["object"] == object],
+                [ride for ride in self.rides if ride["object"] == object])
 
 def main():
     print("main")

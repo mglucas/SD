@@ -13,7 +13,7 @@ This project is still in development and the following tasks correspond to the s
 
 - [x] Trial Application 0.1
 - [x] Trial Application 0.2
-- [...] Application 1
+- [ ] Application 1
 - [ ] Application 2
 - [ ] Application 3
 

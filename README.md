@@ -11,12 +11,16 @@ Each of the directories listed in this repository contains a standalone applicat
 
 This project is still in development and the following tasks correspond to the steps to be taken until the end of September 2021.
 
-- [x] Application 0
-- [ ] Application 0.5
-- [ ] Application 1
+- [x] Trial Application 0.1
+- [x] Trial Application 0.2
+- [...] Application 1
 - [ ] Application 2
 - [ ] Application 3
 
 ## 💻 Prerequisites
 
 [In Progress] Include pip installations...
+
+```
+pip install Pyro4 cryptography stdiomask prettytable rich
+```

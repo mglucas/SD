@@ -122,13 +122,39 @@ class Client(object):
             for ride in subs[1]:
                 rides_table.add_row([ride["id"], ride["origin"], ride["destination"],
                                      ride["date"], ride["passengers"]])
-            sys.stdout.write(str(requests_table))
-            print()
-            # print(rides_table)
+            # sys.stdout.write(str(rides_table))
+            # print()
+            print(rides_table)
 
 
     def delSubscription(self, server):
-        pass
+        """
+        Description: .
+        
+        Parameters:
+        - server (Server): Server instance which is hosting the application.
+
+        Returns:
+        - None
+        """
+        print(" ------ [bold] Deleting Subscription [/bold] ------")
+        
+        subs = server.getClientSubscriptions(self.reference)
+        self.displaySubscriptions(subs)
+
+        print("Choose an ID to unsubscribe from or return to the user menu.\n"
+              " 0 - Return to user menu")
+        value = int(input())
+
+        while(value not in self.subscriptions):
+            print("[bold underline]Invalid option![/bold underline]")
+            value = int(input())
+
+        if value in self.subscriptions:
+            self.subscriptions.remove(value)
+            print(self.subscriptions)
+
+            server.delSubscription(server)
 
 
     def addSubscription(self, server):

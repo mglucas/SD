@@ -25,13 +25,9 @@ import Pyro4
 import Pyro4.util
 
 # Internal Modules
-from server import Server
+# from server import Server
 """ ------------------------ """
 
-# sys.excepthook = Pyro4.util.excepthook
-
-# Instance
-# serverUser = Pyro4.Proxy("PYRONAME:server.user")
 
 class Client(object):
     """
@@ -43,6 +39,7 @@ class Client(object):
     - name (str): name of the client only set on creation;
     - contact (str): contact of the client (email) only set on creation;
     - password (str): client password.
+    - subscriptions
     - priv_key -TODO- FINISH THIS
     - pub_key 
     - reference  
@@ -57,6 +54,7 @@ class Client(object):
         self.contact = contact
         self.password = password
 
+        self.subscriptions = []
         # Private and public keys
         self.priv_key = rsa.generate_private_key(
             public_exponent=65537,
@@ -82,8 +80,11 @@ class Client(object):
         """
         print(f"This is {self.name} registering in server.")
         # -TODO- CHECK IF CLIENT ISN'T ALREADY REGISTERED
-        server.addClient(self.name, self.contact, self.pub_key)
-
+        print(self.priv_key)
+        print(self.pub_key)
+        print(server)
+        server.addClient(self.name, self.contact, 'self.pub_key')
+        input("Pausa")
 
     @staticmethod
     def displaySubscriptions(subs):
@@ -110,9 +111,9 @@ class Client(object):
             for request in subs[0]:
                 requests_table.add_row([request["id"], request["origin"],
                                         request["destination"], request["date"]])
-            sys.stdout.write(str(requests_table))
-            print()
-            # print(requests_table)
+            # sys.stdout.write(str(requests_table))
+            # print()
+            print(requests_table)
         
         print("\n - Want to be a driver:")
         if subs[1] == []:
@@ -177,6 +178,10 @@ class Client(object):
             print("[bold underline]Invalid option![/bold underline]")
             value = int(input())
         os.system('cls')
+
+        if value == 3:
+            return
+
         print(" ------ [bold] Adding Subscription [/bold] ------")
         
         message = {"name":self.name, "reference":self.reference}
@@ -212,7 +217,7 @@ class Client(object):
             hashes.SHA256()
         )
 
-        server.addSubscription(message, signature)
+        self.subscriptions.append(server.addSubscription(message, signature))
         print("New subscription successfully added! Returning to user menu...")
         time.sleep(3)
         
@@ -455,10 +460,14 @@ class Interface():
 
 
 def main():
-    server = Server() 
-    # joao = Client("Joao","123", "a")
-    # maria = Client("Maria","123123", "b")
-    # athena = Client("Athena","bumbum", "c")
+    # Pyro exceptions
+    sys.excepthook = Pyro4.util.excepthook
+    
+    # Server proxy from Server class in server.py
+    # nameserver = Pyro4.locateNS()
+    # server = Pyro4.Proxy(nameserver.lookup("server"))
+    
+    server = Pyro4.Proxy("PYRONAME:rt.server")
 
     interface = Interface()
     while(interface.state != 9):
@@ -469,7 +478,8 @@ def main():
         elif interface.state == 2:
             interface.registerMenu(server)
         elif interface.state == 3:
-            interface.clientMenu(server)
+            if interface.current_client != None:
+                interface.clientMenu(server)
         elif interface.state != 9:
             os.system('cls')
             interface.setState(0)

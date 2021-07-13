@@ -14,7 +14,6 @@ Computer Engineering major at the Federal University of Technology - Parana.
 import random
 from ast import literal_eval
 from rich import print
-from rich import console
 from rich.console import Console
 import Pyro4
 from cryptography.hazmat.backends import default_backend
@@ -23,20 +22,25 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.exceptions import InvalidSignature
 """ ------------------------ """
 
+# -TODO- document stuff
+
 # Start name server
 ## python -m Pyro4.naming
 # Check NS list 
 ## python -m Pyro4.nsc list
 
-# @Pyro4.expose      
+@Pyro4.expose
 class Server(object):
     def __init__(self):
         print ("server ok")
         self.clients = []
         self.rides = []
         self.requests = []
-        self.current_id = 0
-       
+        # Current ID is different for rides and requests to facilitate filtering
+        # (requests are odd, rides are even)
+        self.current_id = 100
+    
+
     def addClient(self, name, contact, public_key):
         self.clients.append({
             "name" : name,
@@ -49,11 +53,9 @@ class Server(object):
         print(" registered successfully.")
 
 
-
     def addSubscription(self, message, signature):
-        self.current_id += 1
-
         decoded_message = literal_eval(message.decode("utf-8"))
+        # -TODO- CHECK KEY (REFERENCE or NAME)
         client = next(client for client in self.clients if client["name"] == decoded_message["name"])
 
         try:
@@ -72,6 +74,9 @@ class Server(object):
 
         # Identifies if the message relates to a request or ride
         if len(decoded_message) == 5:
+            self.current_id += 1
+            if not(self.current_id % 2):
+                self.current_id += 1
             self.requests.append({
                 "id"          : self.current_id,
                 "reference"   : decoded_message["reference"],
@@ -81,6 +86,9 @@ class Server(object):
                 "date"        : decoded_message["date"]
             })
         else:
+            self.current_id += 1
+            if self.current_id % 2:
+                self.current_id += 1
             self.rides.append({
                 "id"          : self.current_id,
                 "reference"   : decoded_message["reference"],
@@ -93,13 +101,13 @@ class Server(object):
 
         return self.current_id
 
-    def delRideRequest(self, id):
-        del_request = next(req for req in self.requests if req["id"] == id )
-        self.requests.remove(del_request)
-
-    def delRide(self):
-        del_ride = next(ride for ride in self.rides if ride["id"] == id )
-        self.rides.remove(del_ride)
+    def delSubscription(self, id):
+        if id % 2:
+            del_request = next(req for req in self.requests if req["id"] == id )
+            self.requests.remove(del_request)
+        else:
+            del_ride = next(ride for ride in self.rides if ride["id"] == id )
+            self.rides.remove(del_ride)
 
     def getAvailableRides(self,origin,destination,date):
         return [ride for ride in self.rides if (ride["origin"] == origin 
@@ -107,17 +115,18 @@ class Server(object):
                                             and ride["date"] == date)]
     
     def getClientSubscriptions(self, reference):
+        # -TODO- CHECK KEY (REFERENCE or NAME)
         return ([request for request in self.requests if request["reference"] == reference],
                 [ride for ride in self.rides if ride["reference"] == reference])
 
 def main():
-    print("Unimplemented server main function")
+    print("Server main function")
     # Registering Pyro class as a daemon in name server
-    # Pyro4.Daemon.serveSimple(
-    #         {
-    #             User: "server.user"
-    #         },
-    #         ns = True)
+    Pyro4.Daemon.serveSimple(
+            {
+                Server: "rt.server"
+            },
+            ns = True)
 
 if __name__=="__main__":
     main()

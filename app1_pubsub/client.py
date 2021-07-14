@@ -53,15 +53,26 @@ class Client(object):
         self.name = name
         self.contact = contact
         self.password = password
-
         self.subscriptions = []
+        
         # Private and public keys
         self.priv_key = rsa.generate_private_key(
             public_exponent=65537,
             key_size=2048,
             backend=default_backend()
         )
+        
+        self.pem_priv_key = self.priv_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+
         self.pub_key = self.priv_key.public_key()
+        self.pem_pub_key = self.pub_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
 
         # Remote object reference -TODO- WITH PYRO
         self.reference = 1
@@ -79,12 +90,12 @@ class Client(object):
         - None
         """
         print(f"This is {self.name} registering in server.")
-        # -TODO- CHECK IF CLIENT ISN'T ALREADY REGISTERED
-        print(self.priv_key)
-        print(self.pub_key)
-        print(server)
-        server.addClient(self.name, self.contact, 'self.pub_key')
-        input("Pausa")
+        # -TODO- CHECK IF CLIENT ISN'T ALREADY REGISTERED\
+        if(server.addClient(self.name, self.contact, self.pem_pub_key)):
+            print(f"Success!")
+        else: 
+            print(f"Fail! User already exists")
+
 
     @staticmethod
     def displaySubscriptions(subs):
@@ -145,17 +156,17 @@ class Client(object):
 
         print("Choose an ID to unsubscribe from or return to the user menu.\n"
               " 0 - Return to user menu")
-        value = int(input())
+        id = int(input())
 
-        while(value not in self.subscriptions):
+        while(id not in self.subscriptions):
             print("[bold underline]Invalid option![/bold underline]")
-            value = int(input())
+            id = int(input())
 
-        if value in self.subscriptions:
-            self.subscriptions.remove(value)
+        if id in self.subscriptions:
+            self.subscriptions.remove(id)
             print(self.subscriptions)
 
-            server.delSubscription(server)
+            server.delSubscription(id)
 
 
     def addSubscription(self, server):

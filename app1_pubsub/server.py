@@ -11,7 +11,10 @@ Computer Engineering major at the Federal University of Technology - Parana.
 
 """ --------- IMPORTS --------- """
 # Libraries
+from dataclasses import field
 import random
+import json
+import serpent
 from ast import literal_eval
 from rich import print
 from rich.console import Console
@@ -39,27 +42,57 @@ class Server(object):
         # Current ID is different for rides and requests to facilitate filtering
         # (requests are odd, rides are even)
         self.current_id = 100
-    
 
-    def addClient(self, name, contact, public_key):
+    def addClient(self, name, contact, public_key ):
+
+        # clientList = self._getClients()  
+        # print(clientList)     
+        # if (self.clients["name"] == clientList["name"]):
+        #     return False
+ 
         self.clients.append({
             "name" : name,
             "contact" : contact,
             "publickey" : public_key
         })
+
+        print(self.clients[-1])
+
+        with open('clients.json', 'a+') as file:
+            #file.write(str(self.clients[-1])+"\n")
+            file.write(json.dumps(self.clients[-1],indent=4))
+
         console = Console()
         print("\n[bold chartreuse3]Server[/bold chartreuse3]: ", end="")
         console.print(name, style="bold orange3", end="")
         print(" registered successfully.")
 
+        return True
+
+    def _getClients(self):
+        with open('clients.json', 'rb') as file:
+            clientList = json.load(file)
+        return clientList
 
     def addSubscription(self, message, signature):
-        decoded_message = literal_eval(message.decode("utf-8"))
-        # -TODO- CHECK KEY (REFERENCE or NAME)
-        client = next(client for client in self.clients if client["name"] == decoded_message["name"])
+        # Why use serpent: https://pyro4.readthedocs.io/en/stable/tipstricks.html#binary-data-transfer-file-transfer
+        message = serpent.tobytes(message)
+        messageDict = message.decode('utf-8')
+        messageDict = literal_eval(''.join(messageDict))
 
+        # -TODO- CHECK KEY (REFERENCE or NAME)
+        client = next(client for client in self.clients if client["name"] == messageDict['name'])
+
+        client_public_key  = serialization.load_pem_public_key(
+            serpent.tobytes(client["publickey"]),
+            backend=default_backend()        
+        )
+        
+        signature = serpent.tobytes(signature)
+        
         try:
-            client["publickey"].verify(
+            print("Verificada!")
+            client_public_key.verify(
                 signature,
                 message,
                 padding.PSS(
@@ -73,17 +106,17 @@ class Server(object):
             print("\n[bold chartreuse3]Server[/bold chartreuse3]: Invalid signature")
 
         # Identifies if the message relates to a request or ride
-        if len(decoded_message) == 5:
+        if len(messageDict) == 5:
             self.current_id += 1
             if not(self.current_id % 2):
                 self.current_id += 1
             self.requests.append({
                 "id"          : self.current_id,
-                "reference"   : decoded_message["reference"],
-                "name"        : decoded_message["name"],
-                "origin"      : decoded_message["origin"],
-                "destination" : decoded_message["destination"],
-                "date"        : decoded_message["date"]
+                "reference"   : messageDict["reference"],
+                "name"        : messageDict["name"],
+                "origin"      : messageDict["origin"],
+                "destination" : messageDict["destination"],
+                "date"        : messageDict["date"]
             })
         else:
             self.current_id += 1
@@ -91,12 +124,12 @@ class Server(object):
                 self.current_id += 1
             self.rides.append({
                 "id"          : self.current_id,
-                "reference"   : decoded_message["reference"],
-                "name"        : decoded_message["name"],
-                "origin"      : decoded_message["origin"],
-                "destination" : decoded_message["destination"],
-                "date"        : decoded_message["date"],
-                "passengers"  : decoded_message["passengers"]
+                "reference"   : messageDict["reference"],
+                "name"        : messageDict["name"],
+                "origin"      : messageDict["origin"],
+                "destination" : messageDict["destination"],
+                "date"        : messageDict["date"],
+                "passengers"  : messageDict["passengers"]
             })
 
         return self.current_id
@@ -118,6 +151,7 @@ class Server(object):
         # -TODO- CHECK KEY (REFERENCE or NAME)
         return ([request for request in self.requests if request["reference"] == reference],
                 [ride for ride in self.rides if ride["reference"] == reference])
+
 
 def main():
     print("Server main function")

@@ -56,8 +56,6 @@ class Server(object):
             "publickey" : public_key
         })
 
-        print(self.clients[-1])
-
         with open('clients.json', 'a+') as file:
             #file.write(str(self.clients[-1])+"\n")
             file.write(json.dumps(self.clients[-1],indent=4))
@@ -77,21 +75,20 @@ class Server(object):
     def addSubscription(self, message, signature):
         # Why use serpent: https://pyro4.readthedocs.io/en/stable/tipstricks.html#binary-data-transfer-file-transfer
         message = serpent.tobytes(message)
-        messageDict = message.decode('utf-8')
-        messageDict = literal_eval(''.join(messageDict))
+        message_dict = message.decode('utf-8')
+        message_dict = literal_eval(''.join(message_dict))
 
         # -TODO- CHECK KEY (REFERENCE or NAME)
-        client = next(client for client in self.clients if client["name"] == messageDict['name'])
+        client = next(client for client in self.clients if client["name"] == message_dict['name'])
 
         client_public_key  = serialization.load_pem_public_key(
             serpent.tobytes(client["publickey"]),
             backend=default_backend()        
         )
-        
+
         signature = serpent.tobytes(signature)
-        
+
         try:
-            print("Verificada!")
             client_public_key.verify(
                 signature,
                 message,
@@ -106,17 +103,17 @@ class Server(object):
             print("\n[bold chartreuse3]Server[/bold chartreuse3]: Invalid signature")
 
         # Identifies if the message relates to a request or ride
-        if len(messageDict) == 5:
+        if len(message_dict) == 5:
             self.current_id += 1
             if not(self.current_id % 2):
                 self.current_id += 1
             self.requests.append({
                 "id"          : self.current_id,
-                "reference"   : messageDict["reference"],
-                "name"        : messageDict["name"],
-                "origin"      : messageDict["origin"],
-                "destination" : messageDict["destination"],
-                "date"        : messageDict["date"]
+                "reference"   : message_dict["reference"],
+                "name"        : message_dict["name"],
+                "origin"      : message_dict["origin"],
+                "destination" : message_dict["destination"],
+                "date"        : message_dict["date"]
             })
         else:
             self.current_id += 1
@@ -124,12 +121,12 @@ class Server(object):
                 self.current_id += 1
             self.rides.append({
                 "id"          : self.current_id,
-                "reference"   : messageDict["reference"],
-                "name"        : messageDict["name"],
-                "origin"      : messageDict["origin"],
-                "destination" : messageDict["destination"],
-                "date"        : messageDict["date"],
-                "passengers"  : messageDict["passengers"]
+                "reference"   : message_dict["reference"],
+                "name"        : message_dict["name"],
+                "origin"      : message_dict["origin"],
+                "destination" : message_dict["destination"],
+                "date"        : message_dict["date"],
+                "passengers"  : message_dict["passengers"]
             })
 
         return self.current_id

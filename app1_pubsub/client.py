@@ -14,6 +14,7 @@ Computer Engineering major at the Federal University of Technology - Parana.
 import os
 import sys
 import time
+from threading import Thread
 import stdiomask
 from rich import print
 from rich.console import Console
@@ -61,7 +62,6 @@ class Client(object):
             key_size=2048,
             backend=default_backend()
         )
-        
         self.pem_priv_key = self.priv_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
@@ -74,8 +74,11 @@ class Client(object):
         format=serialization.PublicFormat.SubjectPublicKeyInfo
         )
 
-        # Remote object reference -TODO- WITH PYRO
-        self.reference = 1
+        daemon = Pyro4.core.Daemon()
+        self.reference = str(daemon.register(self))
+        thread = Thread(target=daemon.requestLoop)
+        thread.daemon = True
+        thread.start()
 
 
     def registerInServer(self, server):
@@ -90,12 +93,12 @@ class Client(object):
         - None
         """
         print(f"This is {self.name} registering in server.")
-        # -TODO- CHECK IF CLIENT ISN'T ALREADY REGISTERED\
+        
+        # Checks if client is not already registered
         if(server.addClient(self.name, self.contact, self.pem_pub_key)):
-            print(f"Success!")
+            print("Success!")
         else: 
-            print(f"Fail! User already exists")
-
+            print("Fail! User already exists")
 
     @staticmethod
     def displaySubscriptions(subs):
@@ -122,8 +125,6 @@ class Client(object):
             for request in subs[0]:
                 requests_table.add_row([request["id"], request["origin"],
                                         request["destination"], request["date"]])
-            # sys.stdout.write(str(requests_table))
-            # print()
             print(requests_table)
         
         print("\n - Want to be a driver:")
@@ -134,8 +135,6 @@ class Client(object):
             for ride in subs[1]:
                 rides_table.add_row([ride["id"], ride["origin"], ride["destination"],
                                      ride["date"], ride["passengers"]])
-            # sys.stdout.write(str(rides_table))
-            # print()
             print(rides_table)
 
 
@@ -151,7 +150,7 @@ class Client(object):
         """
         print(" ------ [bold] Deleting Subscription [/bold] ------")
         
-        subs = server.getClientSubscriptions(self.reference)
+        subs = server.getClientSubscriptions(self.name)
         self.displaySubscriptions(subs)
 
         print("Choose an ID to unsubscribe from or return to the user menu.\n"
@@ -251,7 +250,7 @@ class Client(object):
             console.print(self.name, style="bold orange3", end="")
             print("!\nThese are your active subscriptions:\n")
             
-            subs = server.getClientSubscriptions(self.reference)
+            subs = server.getClientSubscriptions(self.name)
             self.displaySubscriptions(subs)
 
             print("\nWhat do you wish to do?\n 1 - Delete subscription \n 2 - Add subscription \n 3 - Logout")
@@ -271,8 +270,8 @@ class Client(object):
                 os.system('cls')
                 return 0
 
-
-    def notifyAvailableRide(self, name, contact):
+    @Pyro4.expose
+    def notifyAvailableDriver(self, name, contact):
         """
         Description: method called by the server whenever a request subscription
                      from the client is met at the host, thus notifying the user.
@@ -295,6 +294,7 @@ class Client(object):
         console.print(contact, style="bold magenta", end="")
 
 
+    @Pyro4.expose
     def notifyAvailablePassenger(self, name, contact):
         """
         Description: method called by the server whenever a ride subscription

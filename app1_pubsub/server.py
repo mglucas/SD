@@ -12,10 +12,8 @@ Computer Engineering major at the Federal University of Technology - Parana.
 """ --------- IMPORTS --------- """
 # Libraries
 import os
-import sys
-import json
+from pathlib import Path
 import pickle
-import pathlib
 import serpent
 from ast import literal_eval
 from rich import print
@@ -37,30 +35,38 @@ from cryptography.exceptions import InvalidSignature
 @Pyro4.expose
 class Server(object):
     def __init__(self):
-        print ("server ok")
-        self.clients = []
-        self.rides = []
-        self.requests = []
+        print ("[bold chartreuse3]Server[/bold chartreuse3]: Initilized a server instance")
+        
+        self.clients = pickleload("clients") if Path("clients.pickle").is_file() else []
+        self.rides = pickleload("rides") if Path("rides.pickle").is_file() else []
+        self.requests = pickleload("requests") if Path("requests.pickle").is_file() else []
         # Current ID is different for rides and requests to facilitate filtering
         # (requests are odd, rides are even)
-        self.current_id = 100
+        self.current_id = pickleload("current_id") if Path("current_id.pickle").is_file() else 100
 
         pickledump(self.clients, 'clients')
         pickledump(self.rides, 'rides')
         pickledump(self.requests, 'requests')
         pickledump(self.current_id, 'current_id')
 
-    def addClient(self, name, contact, public_key ):
 
-        # -TODO- finish json, check if client already exists
-        print("add client")
+    def addClient(self, name, contact, public_key):
+        """
+        Description: .
+        
+        Parameters:
+        - x (string): .
 
-        #clientList = self._getClients()
-        #print(clientList)       
-        #if (self.clients["name"] == clientList["name"]):
-        #    return False
-
+        Returns:
+        - None
+        """
+        print("[bold chartreuse3]Server[/bold chartreuse3]: Adding client")
         self.clients = pickleload("clients")
+
+        # -TODO- check if client already exists
+        if (name in [d["name"] for d in self.clients]):
+            return False
+
         self.clients.append({
             "name" : name,      # unique key for each client
             "contact" : contact,
@@ -69,9 +75,6 @@ class Server(object):
         })
         pickledump(self.clients, 'clients')
 
-        #with open('clients.json', 'a+') as file:
-        #    file.write(json.dumps(self.clients[-1],indent=4))
-
         console = Console()
         print("\n[bold chartreuse3]Server[/bold chartreuse3]: ", end="")
         console.print(name, style="bold orange3", end="")
@@ -79,32 +82,30 @@ class Server(object):
 
         return True
 
-    def _getClients(self):
-        with open('clients.json', 'r') as file:
-            print("reading json")
-            clientList = json.load(file)
-            print("fodase")
-        return clientList
 
     def addSubscription(self, message, signature):
+        """
+        Description: .
+        
+        Parameters:
+        - x (string): .
+
+        Returns:
+        - None
+        """
         self.clients = pickleload("clients")
         self.rides = pickleload("rides")
         self.requests = pickleload("requests")
         self.current_id = pickleload("current_id")
-
-        print("==================================")
-        print(self.clients)
-        print(self.rides)
-        print(self.requests)
-        print(self.current_id)
-        print("==================================")
 
         # Why use serpent: https://pyro4.readthedocs.io/en/stable/tipstricks.html#binary-data-transfer-file-transfer
         message = serpent.tobytes(message)
         message_dict = message.decode('utf-8')
         message_dict = literal_eval(''.join(message_dict))
 
-        client = next(client for client in self.clients if client["name"] == message_dict["name"])
+        client = next((client for client in self.clients if client["name"] == message_dict["name"]), None)
+        if client == None:
+            print(f"Could not find client {message_dict['name']}!!!")
 
         client_public_key  = serialization.load_pem_public_key(
             serpent.tobytes(client["publickey"]),
@@ -112,7 +113,6 @@ class Server(object):
         )
 
         signature = serpent.tobytes(signature)
-
         try:
             client_public_key.verify(
                 signature,
@@ -142,8 +142,6 @@ class Server(object):
                 "destination" : message_dict["destination"],
                 "date"        : message_dict["date"]
             })
-            print("[chartreuse3]Server:[/chartreuse3] Registered new request!")
-            print(self.requests)
         else:
             self.current_id += 1
             if self.current_id % 2:
@@ -156,9 +154,6 @@ class Server(object):
                 "date"        : message_dict["date"],
                 "passengers"  : message_dict["passengers"]
             })
-            print("[green] Registered new ride! [/green]")
-            print(self.rides)
-        
 
         self.checkNotify(client, message_dict)
 
@@ -169,7 +164,17 @@ class Server(object):
 
         return self.current_id
 
+
     def delSubscription(self, id):
+        """
+        Description: .
+        
+        Parameters:
+        - x (string): .
+
+        Returns:
+        - None
+        """
         if id % 2:
             self.requests = pickleload("requests")
             del_request = next(req for req in self.requests if req["id"] == id )
@@ -181,55 +186,63 @@ class Server(object):
             self.rides.remove(del_ride)
             pickledump(self.rides, "rides")
 
+
     def getAvailableRides(self,origin,destination,date):
+        """
+        Description: .
+        
+        Parameters:
+        - x (string): .
+
+        Returns:
+        - None
+        """
         self.rides = pickleload("rides")
         return [ride for ride in self.rides if (ride["origin"] == origin 
                                             and ride["destination"] == destination 
                                             and ride["date"] == date)]
     
     def checkNotify(self, new_client, new_sub):
+        """
+        Description: .
+        
+        Parameters:
+        - x (string): .
+
+        Returns:
+        - None
+        """
         if len(new_sub) == 5:
-            print(self.rides)
-            print(new_sub)
             matches = [ride for ride in self.rides if ride["origin"] == new_sub["origin"]
                                                   and ride["destination"] == new_sub["destination"]
                                                   and ride["date"] == new_sub["date"]]
-            print(matches)
             if matches != []:
                 for match in matches:
                     client = next(client for client in self.clients if client["name"] == match["name"])
-                    print(client)
-                    print(match)
-
-                    print(new_client)
-                    print(new_sub)
-                    input()
 
                     client_p = Pyro4.Proxy(client["reference"])
                     client_p.notifyAvailablePassenger(new_client["name"], new_client["contact"])
         else:
-            print(self.requests)
-            print(new_sub)
             matches = [request for request in self.requests if request["origin"] == new_sub["origin"]
                                                            and request["destination"] == new_sub["destination"]
                                                            and request["date"] == new_sub["date"]]
-            
-            print(matches)
             if matches != []:
                 for match in matches:
                     client = next(client for client in self.clients if client["name"] == match["name"])
-
-                    print(client)
-                    print(match)
-
-                    print(new_client)
-                    print(new_sub)
-                    input()
 
                     client_p = Pyro4.Proxy(client["reference"])
                     client_p.notifyAvailableDriver(new_client["name"], new_client["contact"])
 
     def getClientSubscriptions(self, name):
+        """
+        Description: .
+        
+        Parameters:
+        - name (string): .
+
+        Returns:
+        - None
+        """
         self.rides = pickleload("rides")
         self.requests = pickleload("requests")
         return ([request for request in self.requests if request["name"] == name],
@@ -245,13 +258,14 @@ def pickledump(dumped_data, name):
     - dumped_data (undefined): data to be dumped, which could be of any type;
     - name (string): name with which the file will be saved.
 
-    Returns: None
+    Returns:
+    - None
     """
     with open(f'{name}.pickle', 'wb') as handle:
         pickle.dump(dumped_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
-def pickleload(name, direct_path=None):
+def pickleload(name):
     """
     Description: simple formalization of the function "load" from the library
                  pickle. Open file that has the given name and load its data.
@@ -276,10 +290,21 @@ def main():
     print("Server main function")
     # Registering Pyro class as a daemon in name server
     Pyro4.Daemon.serveSimple(
-            {
-                Server: "rt.server"
-            },
-            ns = True)
+        {
+            Server: "rt.server"
+        },
+        ns = True)
+
+    print("[bold chartreuse3]Server[/bold chartreuse3]: Killing the server :(")
+    if Path("clients.pickle").is_file():
+        os.remove("clients.pickle")
+    if Path("current_id.pickle").is_file():
+        os.remove("current_id.pickle")
+    if Path("requests.pickle").is_file():
+        os.remove("requests.pickle")
+    if Path("rides.pickle").is_file():
+        os.remove("rides.pickle")
+
 
 if __name__=="__main__":
     main()

@@ -25,8 +25,11 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.exceptions import InvalidSignature
 """ ------------------------ """
 
-# -TODO- document stuff
-
+""" 
+    TODO-Victor document stuff
+    TODO-Mega @Pyro4.expose on necessary methods. Exclude private methods.
+    TODO-Mega Start nameserver from code 
+"""
 # Start name server
 ## python -m Pyro4.naming
 # Check NS list 
@@ -63,7 +66,7 @@ class Server(object):
         print("[bold chartreuse3]Server[/bold chartreuse3]: Adding client")
         self.clients = pickleload("clients")
 
-        # -TODO- check if client already exists
+        # Check if client already exists
         if (name in [d["name"] for d in self.clients]):
             return False
 
@@ -187,21 +190,6 @@ class Server(object):
             pickledump(self.rides, "rides")
 
 
-    def getAvailableRides(self,origin,destination,date):
-        """
-        Description: .
-        
-        Parameters:
-        - x (string): .
-
-        Returns:
-        - None
-        """
-        self.rides = pickleload("rides")
-        return [ride for ride in self.rides if (ride["origin"] == origin 
-                                            and ride["destination"] == destination 
-                                            and ride["date"] == date)]
-    
     def checkNotify(self, new_client, new_sub):
         """
         Description: .
@@ -232,6 +220,23 @@ class Server(object):
 
                     client_p = Pyro4.Proxy(client["reference"])
                     client_p.notifyAvailableDriver(new_client["name"], new_client["contact"])
+    
+    
+    def getAvailableRides(self,origin,destination,date):
+        """
+        Description: .
+        
+        Parameters:
+        - x (string): .
+
+        Returns:
+        - None
+        """
+        self.rides = pickleload("rides")
+        return [ride for ride in self.rides if (ride["origin"] == origin 
+                                            and ride["destination"] == destination 
+                                            and ride["date"] == date)]
+    
 
     def getClientSubscriptions(self, name):
         """

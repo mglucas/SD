@@ -29,6 +29,11 @@ import Pyro4.util
 # from server import Server
 """ ------------------------ """
 
+""" 
+    TODO-Victor - fix input() - invalid characters
+    TODO-Mega - README
+    TODO-Mega - locate Name Server instead of direct reference/serve Simple in main()
+"""   
 
 class Client(object):
     """
@@ -41,7 +46,7 @@ class Client(object):
     - contact (str): contact of the client (email) only set on creation;
     - password (str): client password.
     - subscriptions
-    - priv_key -TODO- FINISH THIS
+    - priv_key TODO-Victor FINISH THIS
     - pub_key 
     - reference  
         
@@ -56,26 +61,35 @@ class Client(object):
         self.password = password
         self.subscriptions = []
         
-        # Private and public keys
+        # Private and public keys 
+        # Generate private key
         self.priv_key = rsa.generate_private_key(
             public_exponent=65537,
             key_size=2048,
             backend=default_backend()
         )
+
+        # Serialize private key
         self.pem_priv_key = self.priv_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
             encryption_algorithm=serialization.NoEncryption()
         )
 
+        # Create public key from private key
         self.pub_key = self.priv_key.public_key()
+
+        # Serialize public key
         self.pem_pub_key = self.pub_key.public_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo
         )
 
+        # Create client remote object reference (URI)
         daemon = Pyro4.core.Daemon()
         self.reference = str(daemon.register(self))
+        
+        # Thread waits for server callback due to notification
         thread = Thread(target=daemon.requestLoop)
         thread.daemon = True
         thread.start()
@@ -83,6 +97,9 @@ class Client(object):
 
     def registerInServer(self, server):
         """
+        TODO-Victor - Color text in prints
+
+
         Description: calls server method to register new client; this is done
                      on creation of the object.
         
@@ -109,7 +126,8 @@ class Client(object):
         Parameters:
         - subs (tuple): contains two lists of subscriptions, the first
                         with the client's requests and the seconds with
-                        their rides.
+                        their rides ( return value from getClientSubscriptions 
+                        from server instance).
 
         Returns:
         - None
@@ -229,7 +247,7 @@ class Client(object):
 
         self.subscriptions.append(server.addSubscription(message, signature))
         print("New subscription successfully added! Returning to user menu...")
-        time.sleep(3)
+        time.sleep(2)
         
 
     def interact(self, server):
@@ -273,6 +291,9 @@ class Client(object):
     @Pyro4.expose
     def notifyAvailableDriver(self, name, contact):
         """
+        TODO-Victor - Fix print formatting
+        TODO-Mega - Test Pyro callback decorator 
+
         Description: method called by the server whenever a request subscription
                      from the client is met at the host, thus notifying the user.
         
@@ -297,6 +318,9 @@ class Client(object):
     @Pyro4.expose
     def notifyAvailablePassenger(self, name, contact):
         """
+        TODO-Victor - Fix print formatting
+        TODO-Mega - Test Pyro callback decorator 
+
         Description: method called by the server whenever a ride subscription
                      from the client is met at the host, thus notifying the user.
         
@@ -322,7 +346,7 @@ class Interface():
     """
     Description: this class implements a simple interaction with the user through
                  the terminal. The methods follow a menu to menu structure
-                 specified by this diagram: -TODO- LINK.
+                 specified by this diagram: TODO-Mega LINK.
     
     Attributes:
     - state (int): current state of the interface, determining which menu to display
@@ -331,7 +355,7 @@ class Interface():
                    2 - client register menu
                    3 - client based menu interaction with application functionalities
                    9 - exits the application;
-    - clients (list of Client): keeps track of the registered clients; -TODO- MAYBE USE THE SERVER TO GET THE LIST OF CLIENTS
+    - clients (list of Client): keeps track of the registered clients; -TODO-Victor MAYBE USE THE SERVER TO GET THE LIST OF CLIENTS
     - current_client (Client): currently active client.
         
     Methods:
@@ -420,7 +444,7 @@ class Interface():
             print("!\nLogging in...")
             self.current_client = client
             self.state = 3
-            time.sleep(2)
+            time.sleep(1)
         
         os.system('cls')
 

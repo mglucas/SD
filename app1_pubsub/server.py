@@ -27,15 +27,12 @@ from cryptography.exceptions import InvalidSignature
 
 """ 
     TODO-Victor document stuff
-    TODO-Mega @Pyro4.expose on necessary methods. Exclude private methods.
-    TODO-Mega Start nameserver from code 
 """
 # Start name server
 ## python -m Pyro4.naming
 # Check NS list 
 ## python -m Pyro4.nsc list
 
-@Pyro4.expose
 class Server(object):
     def __init__(self):
         print ("[bold chartreuse3]Server[/bold chartreuse3]: Initilized a server instance")
@@ -52,7 +49,7 @@ class Server(object):
         pickledump(self.requests, 'requests')
         pickledump(self.current_id, 'current_id')
 
-
+    @Pyro4.expose
     def addClient(self, name, contact, public_key):
         """
         Description: .
@@ -85,7 +82,7 @@ class Server(object):
 
         return True
 
-
+    @Pyro4.expose
     def addSubscription(self, message, signature):
         """
         Description: .
@@ -167,7 +164,7 @@ class Server(object):
 
         return self.current_id
 
-
+    @Pyro4.expose
     def delSubscription(self, id):
         """
         Description: .
@@ -189,7 +186,7 @@ class Server(object):
             self.rides.remove(del_ride)
             pickledump(self.rides, "rides")
 
-
+    @Pyro4.expose
     def checkNotify(self, new_client, new_sub):
         """
         Description: .
@@ -221,7 +218,7 @@ class Server(object):
                     client_p = Pyro4.Proxy(client["reference"])
                     client_p.notifyAvailableDriver(new_client["name"], new_client["contact"])
     
-    
+    @Pyro4.expose    
     def getAvailableRides(self,origin,destination,date):
         """
         Description: .
@@ -237,7 +234,7 @@ class Server(object):
                                             and ride["destination"] == destination 
                                             and ride["date"] == date)]
     
-
+    @Pyro4.expose
     def getClientSubscriptions(self, name):
         """
         Description: .
@@ -301,15 +298,8 @@ def main():
         ns = True)
 
     print("[bold chartreuse3]Server[/bold chartreuse3]: Killing the server :(")
-    if Path("clients.pickle").is_file():
-        os.remove("clients.pickle")
-    if Path("current_id.pickle").is_file():
-        os.remove("current_id.pickle")
-    if Path("requests.pickle").is_file():
-        os.remove("requests.pickle")
-    if Path("rides.pickle").is_file():
-        os.remove("rides.pickle")
 
+    cleanUpFiles()
 
 if __name__=="__main__":
     main()

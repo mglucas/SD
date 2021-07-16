@@ -12,26 +12,28 @@ Computer Engineering major at the Federal University of Technology - Parana.
 """ --------- IMPORTS --------- """
 # Libraries
 import os
+import time
 from pathlib import Path
 import pickle
+from Pyro4.core import expose
 import serpent
 from ast import literal_eval
 from rich import print
 from rich.console import Console
+from threading import Thread
 import Pyro4
+import Pyro4.naming
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.exceptions import InvalidSignature
 """ ------------------------ """
 
+HOSTNAME = "127.0.0.1"
+
 """ 
     TODO-Victor document stuff
 """
-# Start name server
-## python -m Pyro4.naming
-# Check NS list 
-## python -m Pyro4.nsc list
 
 class Server(object):
     def __init__(self):
@@ -287,9 +289,35 @@ def pickleload(name):
         return []
     return loaded_data
 
+def startNSThread():
+    try: 
+        print("[bold yellow]NameServer[/bold yellow]: Starting ")
+        thread = Thread(target=Pyro4.naming.startNSloop,args=(HOSTNAME,))
+        thread.daemon = True
+        thread.start()
+        time.sleep(1)
+        print("[bold yellow]NameServer[/bold yellow]: Running!\n")
+    except: 
+        print("[bold yellow]NameServer[/bold yellow]: [red]Error![/red] Check NameServer \n")
+        exit
+
+def cleanUpFiles():
+    if Path("clients.pickle").is_file():
+        os.remove("clients.pickle")
+    if Path("current_id.pickle").is_file():
+        os.remove("current_id.pickle")
+    if Path("requests.pickle").is_file():
+        os.remove("requests.pickle")
+    if Path("rides.pickle").is_file():
+        os.remove("rides.pickle")
 
 def main():
-    print("Server main function")
+    
+    startNSThread()
+
+    print("[bold chartreuse3]Server[/bold chartreuse3]: Registering on Name Server... ")
+    print("[bold chartreuse3]Server[/bold chartreuse3]: Wait for \"Pyro daemon running\". ")
+
     # Registering Pyro class as a daemon in name server
     Pyro4.Daemon.serveSimple(
         {

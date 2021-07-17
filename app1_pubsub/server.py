@@ -29,8 +29,11 @@ from cryptography.exceptions import InvalidSignature
 """ ------------------------ """
 
 HOSTNAME = "127.0.0.1"
+SERVER_NAME = "rt.server"
 
-@Pyro4.behavior(instance_mode="session")
+# -------------------------------- CLASSES --------------------------------
+
+@Pyro4.behavior(instance_mode="single")
 class Server(object):
     def __init__(self):
         print ("[bold chartreuse3]Server[/bold chartreuse3]: Initilized a server instance")
@@ -83,6 +86,24 @@ class Server(object):
         print(" registered successfully.")
 
         return True
+
+
+    @Pyro4.expose
+    def getClient(self, name):
+        """
+        Description: get client by name.
+        
+        Parameters:
+        - name (string): client name (unique key).
+
+        Returns:
+        - (Client): correpondent client.
+        """
+        client = next((client for client in self.clients if client["name"] == name), None)
+        if client == None:
+            print(f"\nCould not find client {name}!!!\n")
+
+        return client
 
 
     @Pyro4.expose
@@ -144,7 +165,7 @@ class Server(object):
                   "Valid signature at the server!")
         except InvalidSignature:
             print("\n[bold chartreuse3]Server[/bold chartreuse3]: "
-                  "Invalid signature")
+                  "[bold red]Invalid signature[/bold red]")
 
         if client["reference"] == None:
             client["reference"] = message_dict["reference"]
@@ -244,7 +265,7 @@ class Server(object):
                     client_p = Pyro4.Proxy(client["reference"])
                     client_p.notifyAvailableDriver(new_client["name"], new_client["contact"])
     
-    
+    @Pyro4.expose
     def getAvailableRides(self, origin, destination, date):
         """
         Description: return available rides given certain constraints.
@@ -255,14 +276,16 @@ class Server(object):
         - date (string): selected date of the drive.
 
         Returns:
-        - (dict): item from self.rides list cointaining subscription ID, client
-                  name, drive origin, destination and date and number of passangers.
+        - (list): list of items from self.rides list cointaining subscription ID,
+                  client name, drive origin, destination and date and number of passengers.
         """
+        self.rides = pickleload("rides")
         return [ride for ride in self.rides
                     if (ride["origin"] == origin 
                     and ride["destination"] == destination 
                     and ride["date"] == date)]
-    
+
+
     def getAvailableRequests(self, origin, destination, date):
         """
         Description: return available requests given certain constraints.
@@ -273,13 +296,15 @@ class Server(object):
         - date (string): selected date of the drive.
 
         Returns:
-        - (dict): item from self.requests list cointaining subscription ID, client
-                  name, drive origin, destination and date.
+        - (list): list of items from self.requests list cointaining subscription ID,
+                  client name, drive origin, destination and date.
         """
+        self.requests = pickleload("requests")
         return [request for request in self.requests
                     if (request["origin"] == origin 
                     and request["destination"] == destination
                     and request["date"] == date)]
+
 
     @Pyro4.expose
     def getClientSubscriptions(self, name):
@@ -298,6 +323,10 @@ class Server(object):
         return ([request for request in self.requests if request["name"] == name],
                 [ride for ride in self.rides if ride["name"] == name])
 
+# --------------------------------------------------------------------------
+
+
+# -------------------------------- FUNCTIONS -------------------------------
 
 def pickledump(dumped_data, name):
     """
@@ -335,6 +364,7 @@ def pickleload(name):
         return []
     return loaded_data
 
+
 def startNSThread():
     """
     Description: function responsible for initiating the name server as a thread.
@@ -355,6 +385,7 @@ def startNSThread():
     except: 
         print("[bold yellow]NameServer[/bold yellow]: [red]Error![/red] Check NameServer \n")
         exit
+
 
 def cleanUpFiles():
     """
@@ -377,6 +408,10 @@ def cleanUpFiles():
     if Path("rides.pickle").is_file():
         os.remove("rides.pickle")
 
+# --------------------------------------------------------------------------
+
+
+# ---------------------------------- MAIN ----------------------------------
 
 def main():
     
@@ -388,7 +423,7 @@ def main():
     # Registering Pyro class as a daemon in name server
     Pyro4.Daemon.serveSimple(
         {
-            Server: "rt.server"
+            Server: SERVER_NAME
         },
         ns = True)
 
@@ -397,4 +432,9 @@ def main():
     cleanUpFiles()
 
 if __name__=="__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        quit()
+
+# --------------------------------------------------------------------------

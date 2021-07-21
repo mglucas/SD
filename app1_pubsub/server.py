@@ -35,6 +35,32 @@ SERVER_NAME = "rt.server"
 
 @Pyro4.behavior(instance_mode="single")
 class Server(object):
+    """
+    Description: this class implements the server functionalities. It includes
+                 serving user calls, maintaining their data and notifying
+                 them when necessary.
+    
+    Attributes:
+    - clients (list): list containing all clients as dictionaries;
+    - rides (list): list containing all rides (from drivers) as dictionaries;
+    - requests (list): list containing all requests (from passengers) as
+                       dictionaries;
+    - current_id (int): unique integer ID constantly update to create new
+                        subscriptinos.
+        
+    Methods:
+    - addClient: register new client in server;
+    - getClient: get client from list of clients given their unique name;
+    - addSubscription: add new client subscription;
+    - delSubscription: delete a client subscription by ID;
+    - checkNotify: check if any other subscriptins match a new addition and
+                   notify the adequate correspondent clients if necessary;
+    - getAvailableRides: returns available rides (from drivers);
+    - getAvailableRequests: returns available requests (from passengers);
+    - getClientSubscriptions: return subscriptions (both rides and requests)
+                              for a given client.
+    """
+
     def __init__(self):
         print ("[bold chartreuse3]Server[/bold chartreuse3]: Initilized a server instance")
         
@@ -140,10 +166,7 @@ class Server(object):
         message_dict = message.decode('utf-8')
         message_dict = literal_eval(''.join(message_dict))
 
-        client = next((client for client in self.clients 
-                       if client["name"] == message_dict["name"]), None)
-        if client == None:
-            print(f"Could not find client {message_dict['name']}!!!")
+        client = self.getClient(message_dict["name"])
 
         client_public_key  = serialization.load_pem_public_key(
             serpent.tobytes(client["publickey"]),
@@ -251,7 +274,7 @@ class Server(object):
             
             if matches != []:
                 for match in matches:
-                    client = next(client for client in self.clients if client["name"] == match["name"])
+                    client = self.getClient(match["name"])
 
                     client_p = Pyro4.Proxy(client["reference"])
                     client_p.notifyAvailablePassenger(new_client["name"], new_client["contact"])
@@ -260,7 +283,7 @@ class Server(object):
 
             if matches != []:
                 for match in matches:
-                    client = next(client for client in self.clients if client["name"] == match["name"])
+                    client = self.getClient(match["name"])
 
                     client_p = Pyro4.Proxy(client["reference"])
                     client_p.notifyAvailableDriver(new_client["name"], new_client["contact"])

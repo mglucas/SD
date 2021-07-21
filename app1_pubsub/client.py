@@ -293,6 +293,7 @@ class Client(object):
             print("\nPress [bold bright_cyan]ENTER[/bold bright_cyan] to return to main menu")
             input()
 
+
     def interact(self, server):
         """
         Description: represents the client menu, where the user will interact

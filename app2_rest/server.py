@@ -15,15 +15,10 @@ import os
 import time
 from pathlib import Path
 from threading import Thread
-import serpent
-from ast import literal_eval
+from types import MethodDescriptorType
 from rich import print
 from rich.console import Console
-from flask import Flask, abort, render_template
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.exceptions import InvalidSignature
+from flask import Flask, request, abort 
 from flask_sse import sse
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -42,7 +37,7 @@ app.register_blueprint(sse, url_prefix='/stream')
 @app.route('/')
 def index():
     # abort(404)
-    return {'name': 'Welcome to RideTogether!', 'num_pas': 4}
+    return "Welcome to RideTogether!"
 
 
 # -------------------------------- CLASSES --------------------------------
@@ -62,30 +57,33 @@ requests = []
 current_id = 100
 
 
-def addClient(name, contact, public_key):
+@app.route('/clients', methods=['POST'])
+def addClient():
     """
     Description: add new client with required atributes.
     
     Parameters:
     - name (string): client name (used as primary key for each client);
-    - contact (string): client email;
-    - public_key (bytes): serialized public key.
+    - contact (string): client email.
 
     Returns:
     - (bool): 'True' for when the client was added successfully and 'False'
                 otherwise.
     """
+    global clients
+    
     print("[bold chartreuse3]Server[/bold chartreuse3]: Adding client")
+    
+    name = request.json["name"]
+    contact = request.json["contact"]
 
     # Check if client already exists
     if (name in [d["name"] for d in clients]):
-        return False
+        return {"response": None}
 
     clients.append({
         "name" : name,      # unique key for each client
-        "contact" : contact,
-        "publickey" : public_key,
-        "reference": None
+        "contact" : contact
     })
 
     console = Console()
@@ -93,11 +91,10 @@ def addClient(name, contact, public_key):
     console.print(name, style="bold orange3", end="")
     print(" registered successfully.")
 
-    return True
+    return {"response": {name}}
 
 
-# API index page
-@app.route('/getclients')
+@app.route('/clients/<name>', methods=['GET'])
 def getClient(name):
     """
     Description: get client by name.
@@ -108,25 +105,17 @@ def getClient(name):
     Returns:
     - (Client): correpondent client.
     """
+    global clients
+
     client = next((client for client in clients if client["name"] == name), None)
     if client == None:
         print(f"\nCould not find client {name}!!!\n")
 
-    return client
-    # global current_id
+    return {"response": client}
 
 
-    # current_id += 1
-    # if(current_id % 2):
-    #     sse.publish({"Canal": "1", "status": "Active", "number": current_id }, type='publish', channel="channel1")
-
-    # sse.publish({"Canal": "2", "status": "Active", "number": current_id }, type='publish', channel=str(current_id))
-
-
-    # return f"PAR ativa o canal 1 \n - IMPAR ativa o canal 2 \n number -> {current_id}"
-
-
-def addSubscription(message, signature):
+@app.route('/subscriptions', methods=['POST'])
+def addSubscription():
     """
     Description: add new subscription (ride or request) to a client.
                     The communication between the client and the server is
@@ -149,49 +138,23 @@ def addSubscription(message, signature):
     Returns:
     - self.current_id (int): unique attributed ID of the subscription.
     """
-    # Why use serpent: https://pyro4.readthedocs.io/en/stable/tipstricks.html#binary-data-transfer-file-transfer
-    message = serpent.tobytes(message)
-    message_dict = message.decode('utf-8')
-    message_dict = literal_eval(''.join(message_dict))
+    #global clients
+    global rides, requests, current_id
 
-    client = getClient(message_dict["name"])
-
-    client_public_key  = serialization.load_pem_public_key(
-        serpent.tobytes(client["publickey"]),
-        backend=default_backend()        
-    )
-
-    signature = serpent.tobytes(signature)
-    try:
-        client_public_key.verify(
-            signature,
-            message,
-            padding.PSS(
-                mgf=padding.MGF1(hashes.SHA256()),
-                salt_length=padding.PSS.MAX_LENGTH
-            ),
-            hashes.SHA256()
-        )
-        print("\n[bold chartreuse3]Server[/bold chartreuse3]: "
-                "Valid signature at the server!")
-    except InvalidSignature:
-        print("\n[bold chartreuse3]Server[/bold chartreuse3]: "
-                "[bold red]Invalid signature[/bold red]")
-
-    if client["reference"] == None:
-        client["reference"] = message_dict["reference"]
+    message = request.json["message"]
+    client = getClient(message["name"])
 
     # Identifies if the message relates to a request or ride
-    if len(message_dict) == 5:
+    if len(message) == 5:
         current_id += 1
         if not(current_id % 2):
             current_id += 1
         requests.append({
             "id"          : current_id,
-            "name"        : message_dict["name"],
-            "origin"      : message_dict["origin"],
-            "destination" : message_dict["destination"],
-            "date"        : message_dict["date"]
+            "name"        : message["name"],
+            "origin"      : message["origin"],
+            "destination" : message["destination"],
+            "date"        : message["date"]
         })
     else:
         current_id += 1
@@ -199,18 +162,19 @@ def addSubscription(message, signature):
             current_id += 1
         rides.append({
             "id"          : current_id,
-            "name"        : message_dict["name"],
-            "origin"      : message_dict["origin"],
-            "destination" : message_dict["destination"],
-            "date"        : message_dict["date"],
-            "passengers"  : message_dict["passengers"]
+            "name"        : message["name"],
+            "origin"      : message["origin"],
+            "destination" : message["destination"],
+            "date"        : message["date"],
+            "passengers"  : message["passengers"]
         })
 
-    checkNotify(client, message_dict)
+    checkNotify(client, message)
 
-    return current_id
+    return {"id" : current_id}
 
 
+@app.route('/subscriptions/<id>', methods=['DELETE'])
 def delSubscription(id):
     """
     Description: deletes already existing subscription.
@@ -222,14 +186,16 @@ def delSubscription(id):
     - None
     """
     if id % 2:
-        del_request = next(req for req in requests if req["id"] == id )
-        requests.remove(del_request)
+        del_sub = next(req for req in requests if req["id"] == id )
+        requests.remove(del_sub)
     else:
-        del_ride = next(ride for ride in rides if ride["id"] == id )
-        rides.remove(del_ride)
+        del_sub = next(ride for ride in rides if ride["id"] == id )
+        rides.remove(del_sub)
+
+    return {"message" : del_sub}
 
 
-def checkNotify(self, new_client, new_sub):
+def checkNotify(new_client, new_sub):
     """
     Description: method called everytime a new subscription is added to check
                     if any other subscription matches the new one (an already
@@ -248,23 +214,18 @@ def checkNotify(self, new_client, new_sub):
     - None
     """
     if len(new_sub) == 5:
-        matches = self.getAvailableRides(new_sub["origin"], new_sub["destination"], new_sub["date"])
-        
-        if matches != []:
-            for match in matches:
-                client = self.getClient(match["name"])
-
-                client_p = Pyro4.Proxy(client["reference"])
-                client_p.notifyAvailablePassenger(new_client["name"], new_client["contact"])
+        matches = getAvailableRides(new_sub["origin"], new_sub["destination"], new_sub["date"])
     else:
-        matches = self.getAvailableRequests(new_sub["origin"], new_sub["destination"], new_sub["date"])
+        matches = getAvailableRequests(new_sub["origin"], new_sub["destination"], new_sub["date"])
 
-        if matches != []:
-            for match in matches:
-                client = self.getClient(match["name"])
+    if matches != []:
+        for match in matches:
+            client = getClient(match["name"])
 
-                client_p = Pyro4.Proxy(client["reference"])
-                client_p.notifyAvailableDriver(new_client["name"], new_client["contact"])
+            sse.publish({"id": match["id"], "name": new_client["name"], "contact" : new_client["contact"]},
+                        type='publish',
+                        channel=client["name"])
+
 
 def getAvailableRides(origin, destination, date):
     """

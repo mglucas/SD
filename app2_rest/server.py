@@ -23,18 +23,13 @@ from werkzeug.datastructures import ContentRange
 from rich import print
 from rich.console import Console
 from flask import Flask, request, abort, jsonify
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
 from flask_sse import sse
 from apscheduler.schedulers.background import BackgroundScheduler
 
 """ ------------------------ """
 
-HOSTNAME = "127.0.0.1"
-SERVER_NAME = "rt.server"
-
-
 app = Flask(__name__)
-cors = CORS(app, resources={r"./*": {"origins": "*"}})
 CORS(app)
 app.config["REDIS_URL"] = "redis://localhost"
 app.register_blueprint(sse, url_prefix='/stream')
@@ -133,6 +128,7 @@ def getAllClients():
 
 
 @app.route('/subscriptions', methods=['POST'])
+@cross_origin() # allow all origins all methods.
 def addSubscription():
     """
     Description: add new subscription (ride or request) to a client.
@@ -237,7 +233,7 @@ def checkNotify(new_client, new_sub):
     Returns:
     - None
     """
-    if len(new_sub) == 5:
+    if len(new_sub) == 4:
         matches = availableRides(new_sub["origin"], new_sub["destination"], new_sub["date"])
     else:
         matches = availableRequests(new_sub["origin"], new_sub["destination"], new_sub["date"])
@@ -245,6 +241,8 @@ def checkNotify(new_client, new_sub):
     if matches != []:
         for match in matches:
             client = getClient(match["name"])
+
+            print(client,sys.stderr)
 
             sse.publish({"id": match["id"], "name": new_client["name"], "contact" : new_client["contact"]},
                         type='publish',

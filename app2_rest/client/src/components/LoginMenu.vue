@@ -15,43 +15,17 @@
     <form v-else class="login-form">
       <input v-model="login_name" type="text" placeholder="username"/>
       <input type="password" placeholder="password"/>
-      <button @click="loginClient">login</button>
+      <button @click="loginClient();clientSubscriptions();setupStream()">login</button>
       <p class="message">Not registered? 
-        <a @click="registerStep = true" href="#">Create an account</a>
+        <a @click="(registerStep = true)" href="#">Create an account</a>
       </p>
     </form>
     </div>
   </div>
   <div v-else>
 
-
-    <div @click="(notification = false)" v-if="notification" class="alert-message">
-      Message 
-    </div>
-
-
     <h1> Hello {{ login_name }}</h1>
     <h2> These are your active subscriptions: </h2>
-    <button @click="clientSubscriptions"> Refresh </button>
-    <h3> - As a passenger: </h3>
-    <div class="tables">
-      <table border>
-          <thead>
-            <tr>
-              <th> ID </th>
-              <th> Date </th>
-              <th> Origin </th>
-              <th> Destination </th>
-            </tr>
-          </thead>
-            <tr v-for="(subs, i) in clientSubscriptionsList['requests']" :key="i">
-              <td> {{ subs.id }} </td>
-              <td> {{ subs.date }} </td>
-              <td> {{ subs.origin }} </td>
-              <td> {{ subs.destination }} </td>
-            </tr>
-        </table>
-    </div>
     <h3> - As a driver: </h3>
     <div class="tables">
       <table border >
@@ -73,6 +47,26 @@
             </tr>
         </table>
     </div>
+    <h3> - As a passenger: </h3>
+    <div class="tables">
+      <table border>
+          <thead>
+            <tr>
+              <th> ID </th>
+              <th> Date </th>
+              <th> Origin </th>
+              <th> Destination </th>
+            </tr>
+          </thead>
+            <tr v-for="(subs, i) in clientSubscriptionsList['requests']" :key="i">
+              <td> {{ subs.id }} </td>
+              <td> {{ subs.date }} </td>
+              <td> {{ subs.origin }} </td>
+              <td> {{ subs.destination }} </td>
+            </tr>
+        </table>
+    </div>
+    
     <h4> Add subscriptions </h4>
       <h5> Driver </h5>
       <form class="register-form">
@@ -120,7 +114,7 @@
     <h4> Delete subscriptions </h4>
     <form class="register-form">
       <input v-model="subToBeDeleted" placeholder="ID to be deleted"/>
-      <button @click="delSubscription()"> Delete </button>
+      <button @click="delSubscription();clientSubscriptions()"> Delete </button>
     </form>
     
   </div>
@@ -219,11 +213,13 @@ export default {
       })
       .catch(function (response) {
           console.log(response);
+      })
+      .finally(function (){
+        clientSubscriptions()
       });
     })
 
     const addSubscription = (() => {
-      setupStream()
       const subData = {}
 
       if (isPassenger.value){
@@ -255,6 +251,9 @@ export default {
       })
       .catch(function (response) {
           console.log(response);
+      })
+      .finally(function (){
+        clientSubscriptions()
       });
     })
 
@@ -289,10 +288,18 @@ export default {
     }) 
 
     const setupStream = (() => {
-      var source = new EventSource("localhost:5000/stream?channel="+login_name.value);
+      var source = new EventSource("http://localhost:5000/stream?channel="+login_name.value);
       source.addEventListener('publish', function(event) {
           var data = JSON.parse(event.data);
-          alert("The server says " + data.message);
+          console.log("data:",data["id"])
+          // If ID is even, then new passenger available. Odd means new ride available.
+          if(!(data["id"] % 2)){
+            alert("New passengeger available for ride"+data["id"]+": "+ data["name"]+" - "+data["contact"] );
+          }
+          else{
+           alert("New ride available for subscription"+data["id"]+": "+ data["name"]+" - "+data["contact"] );
+          }
+      
       }, false);
     })
 

@@ -1,4 +1,5 @@
 <template>
+
   <div v-if="!isUserLogged">    
     <div class="form">
     <form v-if="registerStep" class="register-form">
@@ -22,6 +23,13 @@
     </div>
   </div>
   <div v-else>
+
+
+    <div @click="(notification = false)" v-if="notification" class="alert-message">
+      Message 
+    </div>
+
+
     <h1> Hello {{ login_name }}</h1>
     <h2> These are your active subscriptions: </h2>
     <button @click="clientSubscriptions"> Refresh </button>
@@ -151,6 +159,7 @@ export default {
     const password = ref("")
     const login_name = ref("")
     const subToBeDeleted = ref(0)
+    const notification = ref(false)
     const registerStep = ref(true)
     const isUserLogged = ref(false)
     const isPassenger = ref(true)
@@ -214,6 +223,7 @@ export default {
     })
 
     const addSubscription = (() => {
+      setupStream()
       const subData = {}
 
       if (isPassenger.value){
@@ -278,6 +288,14 @@ export default {
       })
     }) 
 
+    const setupStream = (() => {
+      var source = new EventSource("localhost:5000/stream?channel="+login_name.value);
+      source.addEventListener('publish', function(event) {
+          var data = JSON.parse(event.data);
+          alert("The server says " + data.message);
+      }, false);
+    })
+
     return{
       d_date,
       d_destination,
@@ -289,6 +307,7 @@ export default {
       s_destination,
       s_origin,
       name,
+      notification,
       date,
       email,
       origin,
@@ -297,6 +316,7 @@ export default {
       login_name,
       loginClient,
       isPassenger,
+      setupStream,
       registerStep,
       isUserLogged,
       subToBeDeleted,
@@ -316,6 +336,15 @@ export default {
 <style scoped>
 .tables {
   display: grid;
+}
+
+.alert-message {
+    padding: 15px;
+    width: 50%;
+    align-content: center;
+    background: red;
+    display: inline-table;
+    color: white;
 }
 
 a {

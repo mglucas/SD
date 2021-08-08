@@ -34,6 +34,7 @@ SERVER_NAME = "rt.server"
 
 
 app = Flask(__name__)
+cors = CORS(app, resources={r"./*": {"origins": "*"}})
 CORS(app)
 app.config["REDIS_URL"] = "redis://localhost"
 app.register_blueprint(sse, url_prefix='/stream')
@@ -120,9 +121,9 @@ def getClient(name):
     client = next((client for client in clients if client["name"] == name), None)
     if client == None:
         print(f"\nCould not find client {name}!!!\n")
-        return jsonify(success=False)
+        abort(404)
 
-    return jsonify(success=True)
+    return client
 
 
 @app.route('/clients', methods=['GET'])
@@ -245,9 +246,9 @@ def checkNotify(new_client, new_sub):
         for match in matches:
             client = getClient(match["name"])
 
-            # sse.publish({"id": match["id"], "name": new_client["name"], "contact" : new_client["contact"]},
-            #             type='publish',
-            #             channel=client["name"])
+            sse.publish({"id": match["id"], "name": new_client["name"], "contact" : new_client["contact"]},
+                        type='publish',
+                        channel=client["name"])
 
 
 def availableRides(origin, destination, date):

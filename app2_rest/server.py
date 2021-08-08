@@ -18,6 +18,8 @@ import json
 from pathlib import Path
 from threading import Thread
 from types import MethodDescriptorType
+
+from werkzeug.datastructures import ContentRange
 from rich import print
 from rich.console import Console
 from flask import Flask, request, abort, jsonify
@@ -101,6 +103,7 @@ def addClient():
 
     return jsonify(success=True)
 
+
 @app.route('/clients/<name>', methods=['GET'])
 def getClient(name):
     """
@@ -121,10 +124,12 @@ def getClient(name):
 
     return jsonify(success=True)
 
+
 @app.route('/clients', methods=['GET'])
 def getAllClients():
     global clients
     return jsonify(clients)
+
 
 @app.route('/subscriptions', methods=['POST'])
 def addSubscription():
@@ -152,12 +157,12 @@ def addSubscription():
     """
     #global clients
     global rides, requests, current_id
-
-    message = request.json["message"]
+   
+    message = request.json['data']
     client = getClient(message["name"])
 
     # Identifies if the message relates to a request or ride
-    if len(message) == 5:
+    if len(message) == 4:
         current_id += 1
         if not(current_id % 2):
             current_id += 1
@@ -197,15 +202,18 @@ def delSubscription(id):
     Returns:
     - None
     """
+    id = int(id)
     try:
         if id % 2:
+            print(requests,sys.stderr)
             del_sub = next(req for req in requests if req["id"] == id )
             requests.remove(del_sub)
         else:
+            print(rides,sys.stderr)
             del_sub = next(ride for ride in rides if ride["id"] == id )
             rides.remove(del_sub)
     except:
-        return jsonify(success=False)
+        abort(404)
 
     return jsonify(success=True)
 
@@ -237,9 +245,9 @@ def checkNotify(new_client, new_sub):
         for match in matches:
             client = getClient(match["name"])
 
-            sse.publish({"id": match["id"], "name": new_client["name"], "contact" : new_client["contact"]},
-                        type='publish',
-                        channel=client["name"])
+            # sse.publish({"id": match["id"], "name": new_client["name"], "contact" : new_client["contact"]},
+            #             type='publish',
+            #             channel=client["name"])
 
 
 def availableRides(origin, destination, date):
@@ -293,7 +301,10 @@ def getAvailableRides():
     destination = request.args.get("destination", type = str)
     date = request.args.get("date", type = str)
 
-    return  {"ride": getAvailableRides(origin, destination, date)}
+    return  jsonify([ride for ride in rides
+                if (ride["origin"] == origin 
+                and ride["destination"] == destination
+                and ride["date"] == date)])
 
 
 @app.route('/subscriptions/<name>', methods=['GET'])

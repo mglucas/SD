@@ -130,3 +130,5 @@ dmypy.json
 
 # Extra
 *.pickle
+node_modules
+*.rdb

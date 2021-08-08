@@ -13,12 +13,15 @@ Computer Engineering major at the Federal University of Technology - Parana.
 # Libraries
 import os
 import time
+import sys
+import json
 from pathlib import Path
 from threading import Thread
 from types import MethodDescriptorType
 from rich import print
 from rich.console import Console
-from flask import Flask, request, abort 
+from flask import Flask, request, abort, jsonify
+from flask_cors import CORS
 from flask_sse import sse
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -29,6 +32,7 @@ SERVER_NAME = "rt.server"
 
 
 app = Flask(__name__)
+CORS(app)
 app.config["REDIS_URL"] = "redis://localhost"
 app.register_blueprint(sse, url_prefix='/stream')
 
@@ -56,6 +60,10 @@ rides = []
 requests = []
 current_id = 100
 
+clients.append({
+    "name" : "name",      # unique key for each client
+    "contact" : "contact"
+})
 
 @app.route('/clients', methods=['POST'])
 def addClient():
@@ -72,14 +80,14 @@ def addClient():
     """
     global clients
     
-    print("[bold chartreuse3]Server[/bold chartreuse3]: Adding client")
-    
-    name = request.json["name"]
-    contact = request.json["contact"]
+    content = request.json['data']
+
+    name = content["name"]
+    contact = content["contact"]
 
     # Check if client already exists
     if (name in [d["name"] for d in clients]):
-        return {"response": None}
+        return jsonify(success=False)
 
     clients.append({
         "name" : name,      # unique key for each client
@@ -91,8 +99,7 @@ def addClient():
     console.print(name, style="bold orange3", end="")
     print(" registered successfully.")
 
-    return {"response": {name}}
-
+    return jsonify(success=True)
 
 @app.route('/clients/<name>', methods=['GET'])
 def getClient(name):
@@ -110,9 +117,14 @@ def getClient(name):
     client = next((client for client in clients if client["name"] == name), None)
     if client == None:
         print(f"\nCould not find client {name}!!!\n")
+        return jsonify(success=False)
 
-    return {"response": client}
+    return jsonify(success=True)
 
+@app.route('/clients', methods=['GET'])
+def getAllClients():
+    global clients
+    return jsonify(clients)
 
 @app.route('/subscriptions', methods=['POST'])
 def addSubscription():
@@ -185,14 +197,17 @@ def delSubscription(id):
     Returns:
     - None
     """
-    if id % 2:
-        del_sub = next(req for req in requests if req["id"] == id )
-        requests.remove(del_sub)
-    else:
-        del_sub = next(ride for ride in rides if ride["id"] == id )
-        rides.remove(del_sub)
+    try:
+        if id % 2:
+            del_sub = next(req for req in requests if req["id"] == id )
+            requests.remove(del_sub)
+        else:
+            del_sub = next(ride for ride in rides if ride["id"] == id )
+            rides.remove(del_sub)
+    except:
+        return jsonify(success=False)
 
-    return {"message" : del_sub}
+    return jsonify(success=True)
 
 
 def checkNotify(new_client, new_sub):
@@ -291,7 +306,7 @@ def getClientSubscriptions(name):
 # ---------------------------------- MAIN ----------------------------------
 
 def main():
-    app.run()
+    app.run(debug=True)
 
 if __name__=="__main__":
     try:

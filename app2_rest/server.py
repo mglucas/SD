@@ -229,9 +229,9 @@ def checkNotify(new_client, new_sub):
     - None
     """
     if len(new_sub) == 5:
-        matches = getAvailableRides(new_sub["origin"], new_sub["destination"], new_sub["date"])
+        matches = availableRides(new_sub["origin"], new_sub["destination"], new_sub["date"])
     else:
-        matches = getAvailableRequests(new_sub["origin"], new_sub["destination"], new_sub["date"])
+        matches = availableRequests(new_sub["origin"], new_sub["destination"], new_sub["date"])
 
     if matches != []:
         for match in matches:
@@ -242,7 +242,7 @@ def checkNotify(new_client, new_sub):
                         channel=client["name"])
 
 
-def getAvailableRides(origin, destination, date):
+def availableRides(origin, destination, date):
     """
     Description: return available rides given certain constraints.
     
@@ -255,13 +255,15 @@ def getAvailableRides(origin, destination, date):
     - (list): list of items from self.rides list cointaining subscription ID,
                 client name, drive origin, destination and date and number of passengers.
     """
+    global rides
+
     return [ride for ride in rides
                 if (ride["origin"] == origin 
                 and ride["destination"] == destination 
                 and ride["date"] == date)]
 
 
-def getAvailableRequests(origin, destination, date):
+def availableRequests(origin, destination, date):
     """
     Description: return available requests given certain constraints.
     
@@ -274,12 +276,27 @@ def getAvailableRequests(origin, destination, date):
     - (list): list of items from self.requests list cointaining subscription ID,
                 client name, drive origin, destination and date.
     """
+    global requests
+
     return [request for request in requests
                 if (request["origin"] == origin 
                 and request["destination"] == destination
                 and request["date"] == date)]
 
 
+@app.route('/subscriptions/rides', methods=['GET'])
+def getAvailableRides():
+    """
+
+    """
+    origin = request.args.get("origin", type = str)
+    destination = request.args.get("destination", type = str)
+    date = request.args.get("date", type = str)
+
+    return  {"ride": getAvailableRides(origin, destination, date)}
+
+
+@app.route('/subscriptions/<name>', methods=['GET'])
 def getClientSubscriptions(name):
     """
     Description: return subscriptions for a given client.
@@ -291,8 +308,10 @@ def getClientSubscriptions(name):
     - (tuple): a tuple contaning two lists: the first with the requests
                 and the second with the rides of the given user. 
     """
-    return ([request for request in requests if request["name"] == name],
-            [ride for ride in rides if ride["name"] == name])
+    global rides, requests
+
+    return {"requests": [request for request in requests if request["name"] == name],
+            "rides": [ride for ride in rides if ride["name"] == name]}
 
 
 

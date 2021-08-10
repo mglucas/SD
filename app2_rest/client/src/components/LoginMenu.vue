@@ -8,7 +8,7 @@
       <input v-model="password" type="password" placeholder="password"/>
       <button @click="registerClient">create</button>
       <p class="message">Already registered? 
-        <a @click="registerStep = false" href="#">Sign In </a>
+        <a @click="(registerStep = false)" href="#">Sign In </a>
       </p>
     </form>
 
@@ -191,7 +191,6 @@ export default {
     })
 
     const loginClient = (() => {
-      console.log("teste", login_name.value);
 
       axios.get('/clients/'+login_name.value)
       .then(function (response) {
@@ -294,7 +293,7 @@ export default {
           console.log("data:",data["id"])
           // If ID is even, then new passenger available. Odd means new ride available.
           if(!(data["id"] % 2)){
-            alert("New passengeger available for ride"+data["id"]+": "+ data["name"]+" - "+data["contact"] );
+            alert("New passenger available for ride"+data["id"]+": "+ data["name"]+" - "+data["contact"] );
           }
           else{
            alert("New ride available for subscription"+data["id"]+": "+ data["name"]+" - "+data["contact"] );

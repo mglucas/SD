@@ -367,7 +367,7 @@ class Client(object):
     @Pyro4.expose
     @Pyro4.callback
     def notifyCommitedRide(self, passengers):
-        """ TODO change names contacts
+        """
         Description: method called by the server whenever a ride subscription
                      from the client is met at the host, thus notifying the user.
         

@@ -14,12 +14,14 @@ Computer Engineering major at the Federal University of Technology - Parana.
 import os
 import time
 from pathlib import Path
-from threading import Thread
+from threading import Thread, current_thread
 import pickle
+from cryptography.utils import CryptographyDeprecationWarning
 import serpent
 from ast import literal_eval
 from rich import print
 from rich.console import Console
+import logging
 import Pyro4
 import Pyro4.naming
 from cryptography.hazmat.backends import default_backend
@@ -71,14 +73,30 @@ class Server(object):
         # (requests are odd, rides are even)
         self.current_id = pickleload("current_id") if Path("current_id.pickle").is_file() else 100
 
+        self.logger = log_setup()
+        self.checkFailure()
+
+        self.logger.info('Initialized server')
+
         pickledump(self.clients, 'clients')
         pickledump(self.rides, 'rides')
         pickledump(self.requests, 'requests')
         pickledump(self.current_id, 'current_id')
 
 
+    def checkFailure(self):
+        if Path("ridetogether.log").is_file():
+            f  = open('ridetogether.log')
+            last_log = f.read().splitlines()[-1]
+
+            if last_log.startswith('DEBUG:__main__:Started commit from '):
+                ride_id = last_log[36:]
+                ride = next((r for r in self.rides if r["id"] == ride_id), None)
+                self.commitRide(ride)
+
+
     @Pyro4.expose
-    def addClient(self, name, contact, public_key):
+    def addClient(self, name, contact, initial_balance, public_key):
         """
         Description: add new client with required atributes.
         
@@ -101,15 +119,20 @@ class Server(object):
         self.clients.append({
             "name" : name,      # unique key for each client
             "contact" : contact,
+            "balance" : int(initial_balance),
             "publickey" : public_key,
             "reference": None
         })
         pickledump(self.clients, 'clients')
 
+        pickledump( {"name": name, "balance": initial_balance}, f'{name}_bank_account')
+
         console = Console()
         print("\n[bold chartreuse3]Server[/bold chartreuse3]: ", end="")
         console.print(name, style="bold orange3", end="")
         print(" registered successfully.")
+
+        self.logger.debug(f'Added new client: {name}, with R$ {initial_balance},00 balance')
 
         return True
 
@@ -215,7 +238,8 @@ class Server(object):
                 "origin"      : message_dict["origin"],
                 "destination" : message_dict["destination"],
                 "date"        : message_dict["date"],
-                "passengers"  : message_dict["passengers"]
+                "required_passengers"  : int(message_dict["passengers"]),
+                "current_passengers"  : []
             })
 
         self.checkNotify(client, message_dict)
@@ -251,6 +275,26 @@ class Server(object):
             pickledump(self.rides, "rides")
 
 
+    def chargeRide(self, name):
+        aux = self.getClient(name)
+        if aux['balance'] >=5:
+            aux['balance'] -= 5
+
+
+    def commitRide(self, ride):
+        self.logger.debug(f'Started commit from {ride["id"]}')
+
+        for passenger in ride['current_passengers']:
+            client_bank = pickleload(f"{passenger}_bank_account")
+            client = self.getClient(passenger)
+            
+            # aux['balance'] -= 5  # would not guarantee atomicity
+            client_bank['balance'] = client['balance']
+            pickledump(client_bank, f"{passenger}_bank_account")
+        
+        self.logger.debug(f'Finished commit from {ride["id"]}')
+
+
     def checkNotify(self, new_client, new_sub):
         """
         Description: method called everytime a new subscription is added to check
@@ -269,24 +313,52 @@ class Server(object):
         Returns:
         - None
         """
+        # A new request for a ride was added
         if len(new_sub) == 5:
             matches = self.getAvailableRides(new_sub["origin"], new_sub["destination"], new_sub["date"])
             
             if matches != []:
                 for match in matches:
-                    client = self.getClient(match["name"])
+                    self.chargeRide(new_client["name"])
+                    match['current_passengers'].append(new_client["name"])
 
-                    client_p = Pyro4.Proxy(client["reference"])
-                    client_p.notifyAvailablePassenger(new_client["name"], new_client["contact"])
+                    if len(match['current_passengers']) == match['required_passengers']:
+                        self.commitRide(match)
+
+                        driver = self.getClient(match["name"])
+                        driver_p = Pyro4.Proxy(driver["reference"])
+
+                        passengers = []
+                        for passenger in match['current_passengers']:
+                            aux = self.getClient(passenger)
+                            passengers.append({'name':aux['name'], 'contact':aux['contact']})
+
+                        driver_p.notifyCommitedRide(passengers)
+        # A new ride was added
         else:
             matches = self.getAvailableRequests(new_sub["origin"], new_sub["destination"], new_sub["date"])
 
             if matches != []:
                 for match in matches:
-                    client = self.getClient(match["name"])
+                    if len(new_sub['current_passengers']) < new_sub['required_passengers']:
+                        self.chargeRide(match["name"])
+                        new_sub['current_passengers'].append(match["name"])
 
-                    client_p = Pyro4.Proxy(client["reference"])
-                    client_p.notifyAvailableDriver(new_client["name"], new_client["contact"])
+                        if len(new_sub['current_passengers']) == new_sub['required_passengers']:
+                            self.commitRide(new_sub)
+
+                            driver = self.getClient(new_client["name"])
+                            driver_p = Pyro4.Proxy(driver["reference"])
+                            passengers = []
+                            for passenger in driver['current_passengers']:
+                                aux = self.getClient(passenger)
+                                passengers.append(aux['name'], aux['contact'])
+                            driver_p.notifyCommitedRide(passengers)
+
+                        passenger = self.getClient(match["name"])
+
+                        passenger_p = Pyro4.Proxy(passenger["reference"])
+                        passenger_p.notifyAvailableDriver(new_client["name"], new_client["contact"])
     
     @Pyro4.expose
     def getAvailableRides(self, origin, destination, date):
@@ -386,6 +458,27 @@ def pickleload(name):
     if loaded_data == None:
         return []
     return loaded_data
+
+
+def log_setup():
+    """
+    Description: properly set up logger instance with the necessary
+    formatter and file handler.
+    Parameters:
+    None
+    Returns:
+    - logger (logging Logger): logger after set up.
+    """
+
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
+    if not logger.hasHandlers():
+        file_handler = logging.FileHandler('ridetogether.log')
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+    return logger
 
 
 def startNSThread():

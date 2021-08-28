@@ -117,7 +117,7 @@ class Client(object):
         print(" registering in server...")
         
         # Checks if client is not already registered
-        if(server.addClient(self.name, self.contact, self.pem_pub_key)):
+        if(server.addClient(self.name, self.contact, self.password, self.pem_pub_key)):
             print("\n[bold green]Success!![/bold green]")
         else: 
             print("\n[bold red]Fail![/bold red] User already exists!")
@@ -158,7 +158,7 @@ class Client(object):
             rides_table.field_names = ["ID", "Origin", "Destination", "Date", "Passengers"]
             for ride in subs[1]:
                 rides_table.add_row([ride["id"], ride["origin"], ride["destination"],
-                                     ride["date"], ride["passengers"]])
+                                     ride["date"], ride["required_passengers"]])
             print(rides_table)
 
 
@@ -230,7 +230,7 @@ class Client(object):
             message["destination"] = userInput("c")
             print(" [bold bright_cyan]Date of the ride[/bold bright_cyan]: ", end="")
             message["date"] = userInput("c")
-            print(" [bold bright_cyan]Max number of passengers[/bold bright_cyan]: ", end="")
+            print(" [bold bright_cyan]Min number of passengers[/bold bright_cyan]: ", end="")
             message["passengers"] = userInput("c")
         
         elif value == 2:
@@ -288,7 +288,7 @@ class Client(object):
             rides_table.field_names = ["ID", "Origin", "Destination", "Date", "Passengers"]
             for ride in rides:
                 rides_table.add_row([ride["id"], ride["origin"], ride["destination"],
-                                        ride["date"], ride["passengers"]])
+                                        ride["date"], ride["required_passengers"]])
             print(rides_table)
             print("\nPress [bold bright_cyan]ENTER[/bold bright_cyan] to return to main menu")
             input()
@@ -366,8 +366,8 @@ class Client(object):
 
     @Pyro4.expose
     @Pyro4.callback
-    def notifyAvailablePassenger(self, name, contact):
-        """
+    def notifyCommitedRide(self, passengers):
+        """ TODO change names contacts
         Description: method called by the server whenever a ride subscription
                      from the client is met at the host, thus notifying the user.
         
@@ -383,10 +383,10 @@ class Client(object):
         console = Console()
         print("\n[bold]NOTIFICATION ON [/bold]", end="")
         console.print(self.name, style="bold orange3", end="")
-        print(": Available passenger ", end="")
-        console.print(name, style="bold magenta", end="")
-        print(", contact: ", end="")
-        console.print(contact, style="bold magenta")
+        print(": Your ride was commited with the following passengers: ", end="")
+        for passenger in passengers:
+            console.print(passenger['name'], style="bold magenta", end=": ")
+            console.print(passenger['contact'], style="bold magenta", end=", ")
 
 
 class Interface():

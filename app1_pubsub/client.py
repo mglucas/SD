@@ -16,6 +16,7 @@ import sys
 import time
 from threading import Thread
 import stdiomask
+import pickle
 from rich import print
 from rich.console import Console
 from prettytable import PrettyTable
@@ -63,7 +64,7 @@ class Client(object):
     def __init__(self, name, contact, password):
         self.name = name
         self.contact = contact
-        self.password = password
+        self.balance = int(password)
         self.subscriptions = []
         
         # Private and public keys 
@@ -117,7 +118,7 @@ class Client(object):
         print(" registering in server...")
         
         # Checks if client is not already registered
-        if(server.addClient(self.name, self.contact, self.password, self.pem_pub_key)):
+        if(server.addClient(self.name, self.contact, self.balance, self.pem_pub_key)):
             print("\n[bold green]Success!![/bold green]")
         else: 
             print("\n[bold red]Fail![/bold red] User already exists!")
@@ -388,6 +389,32 @@ class Client(object):
             console.print(passenger['name'], style="bold magenta", end=": ")
             console.print(passenger['contact'], style="bold magenta", end=", ")
 
+    @Pyro4.expose
+    @Pyro4.callback
+    def ridePoll(self, rideID):  
+        print(f"Your ride {rideID} is ready! Do you confirm your reservation?")
+        print("Y - YES or N - NO")
+        return (input() == "Y")
+
+    @Pyro4.expose
+    @Pyro4.callback
+    def confirmRide(self, votingResult, rideID):
+        if votingResult:
+            print(f"Your ride {rideID} was confirmed!")
+            bank_account = pickleload(f"{self.name}_bank_account")
+            if ( bank_account['balance'] == self.balance-5 ):
+                self.balance -= 5
+                return True
+            else:
+                return False
+        else:
+            print(f"Your ride {rideID} still waiting for more passengers!")
+            return False
+
+    @Pyro4.expose
+    @Pyro4.callback
+    def FODASE(self):
+        print("fodase")
 
 class Interface():
     """
@@ -550,6 +577,41 @@ class Interface():
 
 
 # -------------------------------- FUNCTIONS -------------------------------
+def pickledump(dumped_data, name):
+    """
+    Description: simple formalization of the function "dump" from the library
+                 pickle. Open new file with given name and dump given data.
+    
+    Parameters:
+    - dumped_data (undefined): data to be dumped, which could be of any type;
+    - name (string): name with which the file will be saved.
+
+    Returns:
+    - None
+    """
+    with open(f'{name}.pickle', 'wb') as handle:
+        pickle.dump(dumped_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def pickleload(name):
+    """
+    Description: simple formalization of the function "load" from the library
+                 pickle. Open file that has the given name and load its data.
+    
+    Parameters:
+    - name (string): string name of the file that will be opened and loaded;
+    - direct_path (string): path for the exact location where the pickle should
+                            be loaded from.
+
+    Returns:
+    - loaded_data (undefined): data retreived from pickle file.
+    """
+
+    with open(f"{name}.pickle", 'rb') as handle:
+        loaded_data = pickle.load(handle)
+    if loaded_data == None:
+        return []
+    return loaded_data
 
 def userInput(in_type):
     """

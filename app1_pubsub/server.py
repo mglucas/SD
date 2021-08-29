@@ -87,12 +87,14 @@ class Server(object):
     def checkFailure(self):
         if Path("ridetogether.log").is_file():
             f  = open('ridetogether.log')
-            last_log = f.read().splitlines()[-1]
-
-            if last_log.startswith('DEBUG:__main__:Started commit from '):
-                ride_id = last_log[36:]
-                ride = next((r for r in self.rides if r["id"] == ride_id), None)
-                self.commitRide(ride)
+            try:
+                last_log = f.read().splitlines()[-1]
+                if last_log.startswith('DEBUG:__main__:Started commit from '):
+                    ride_id = last_log[36:]
+                    ride = next((r for r in self.rides if r["id"] == ride_id), None)
+                    self.commitRide(ride)
+            except:
+                pass
 
 
     @Pyro4.expose
@@ -282,6 +284,39 @@ class Server(object):
 
 
     def commitRide(self, ride):
+
+        self.logger.debug(f'Started voting for {ride["id"]}')
+
+        confirmed_passengers = []
+
+        # Two-phase commit - 1st phase
+        for p in ride['current_passengers']:
+            passenger = self.getClient(p)
+            passenger_p = Pyro4.Proxy(passenger["reference"])
+            confirmation = passenger_p.ridePoll(ride["id"])
+            if (not(confirmation)): 
+                self.logger.info('Voting unsuccessful')
+                for pas in confirmed_passengers:
+                    pas.confirmRide( False, ride["id"])
+                # Excluding from ride
+                    try:
+                        print("Deleting",requests)
+                        requests = pickleload("requests")
+                        del_request = next(req for req in requests if ( req["name"] == passenger["name"] and 
+                                                                    req["origin"] == passenger["origin"] and
+                                                                    req["destination"] == passenger["destination"] and
+                                                                    req["date"] == passenger["date"]))
+                        requests.remove(del_request)
+                        print("New Requests",requests)
+                        pickledump(self.requests, "requests")
+                    except:
+                        print("Already deleted!")
+
+                return False
+            confirmed_passengers.append(passenger_p)
+        self.logger.info('Voting successful')
+
+        # Commiting        
         self.logger.debug(f'Started commit from {ride["id"]}')
 
         for passenger in ride['current_passengers']:
@@ -293,6 +328,14 @@ class Server(object):
             pickledump(client_bank, f"{passenger}_bank_account")
         
         self.logger.debug(f'Finished commit from {ride["id"]}')
+
+        # Two-phase commit - 2nd phase 
+        ## Have commited
+        for p in confirmed_passengers:
+            response = p.confirmRide( True, ride["id"])
+            print("response:",response)
+            if response:
+                self.logger.debug(f'{p} - Payment confirmed')
 
 
     def checkNotify(self, new_client, new_sub):
@@ -323,17 +366,18 @@ class Server(object):
                     match['current_passengers'].append(new_client["name"])
 
                     if len(match['current_passengers']) == match['required_passengers']:
-                        self.commitRide(match)
+                        if (self.commitRide(match)):
 
-                        driver = self.getClient(match["name"])
-                        driver_p = Pyro4.Proxy(driver["reference"])
+                            driver = self.getClient(match["name"])
+                            driver_p = Pyro4.Proxy(driver["reference"])
 
-                        passengers = []
-                        for passenger in match['current_passengers']:
-                            aux = self.getClient(passenger)
-                            passengers.append({'name':aux['name'], 'contact':aux['contact']})
+                            passengers = []
+                            for passenger in match['current_passengers']:
+                                aux = self.getClient(passenger)
+                                passengers.append({'name':aux['name'], 'contact':aux['contact']})
 
-                        driver_p.notifyCommitedRide(passengers)
+                            driver_p.notifyCommitedRide(passengers) 
+
         # A new ride was added
         else:
             matches = self.getAvailableRequests(new_sub["origin"], new_sub["destination"], new_sub["date"])

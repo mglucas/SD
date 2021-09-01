@@ -92,7 +92,7 @@ class Server(object):
                 if last_log.startswith('DEBUG:__main__:Started commit from '):
                     ride_id = last_log[36:]
                     ride = next((r for r in self.rides if r["id"] == ride_id), None)
-                    self.commitRide(ride)
+                    self.commitRide(ride, failure=True)
             except:
                 pass
 
@@ -223,18 +223,19 @@ class Server(object):
             self.current_id += 1
             if not(self.current_id % 2):
                 self.current_id += 1
-            self.requests.append({
+            new_sub = {
                 "id"          : self.current_id,
                 "name"        : message_dict["name"],
                 "origin"      : message_dict["origin"],
                 "destination" : message_dict["destination"],
                 "date"        : message_dict["date"]
-            })
+            }
+            self.requests.append(new_sub)
         else:
             self.current_id += 1
             if self.current_id % 2:
                 self.current_id += 1
-            self.rides.append({
+            new_sub = {
                 "id"          : self.current_id,
                 "name"        : message_dict["name"],
                 "origin"      : message_dict["origin"],
@@ -242,14 +243,16 @@ class Server(object):
                 "date"        : message_dict["date"],
                 "required_passengers"  : int(message_dict["passengers"]),
                 "current_passengers"  : []
-            })
+            }
+            self.rides.append(new_sub)
+
 
         pickledump(self.clients, "clients")
         pickledump(self.rides, "rides")
         pickledump(self.requests, "requests")
         pickledump(self.current_id, "current_id")
 
-        self.checkNotify(client, message_dict)
+        self.checkNotify(client, new_sub)
         
         return self.current_id
 
@@ -282,31 +285,43 @@ class Server(object):
         if aux['balance'] >=5:
             aux['balance'] -= 5
 
+    def chargeRefund(self, name):
+        aux = self.getClient(name)
+        aux['balance'] += 5
 
-    def commitRide(self, ride):
+    def commitRide(self, ride, failure=False):
 
-        self.logger.debug(f'Started voting for {ride["id"]}')
+        if not failure:
+            self.logger.debug(f'Started voting for {ride["id"]}')
+        
+            confirmed_passengers = []
 
-        confirmed_passengers = []
+            # Two-phase commit - 1st phase
+            for p in ride['current_passengers']:
+                passenger = self.getClient(p)
+                passenger_p = Pyro4.Proxy(passenger["reference"])
+                confirmation = passenger_p.ridePoll(ride["id"])
+                if (not(confirmation)): 
+                    self.logger.info('Voting unsuccessful')
+                    for pas in confirmed_passengers:
+                        self.chargeRefund(pas)
+                        pas.confirmRide( False, ride["id"])
+                        ride['current_passengers'].remove(p)
+                        # Excluding from ride
+                        matches = self.getAvailableRequests(ride["origin"], ride["destination"], ride["date"])
+                        del_request = next((req for req in matches if req["name"] == p), None)
+                        self.delSubscription(del_request["id"])
 
-        # Two-phase commit - 1st phase
-        for p in ride['current_passengers']:
-            passenger = self.getClient(p)
-            passenger_p = Pyro4.Proxy(passenger["reference"])
-            confirmation = passenger_p.ridePoll(ride["id"])
-            if (not(confirmation)): 
-                self.logger.info('Voting unsuccessful')
-                for pas in confirmed_passengers:
-                    pas.confirmRide( False, ride["id"])
-                    ride['current_passengers'].remove(p)
-                    # Excluding from ride
-                    matches = self.getAvailableRequests(ride["origin"], ride["destination"], ride["date"])
-                    del_request = next((req for req in matches if req["name"] == p), None)
-                    self.delSubscription(del_request["id"])
+                    return False
+                confirmed_passengers.append(passenger_p)
+            self.logger.info('Voting successful')
 
-                return False
-            confirmed_passengers.append(passenger_p)
-        self.logger.info('Voting successful')
+        else: 
+            confirmed_passengers = []
+            for p in ride['current_passengers']:
+                passenger = self.getClient(p)
+                passenger_p = Pyro4.Proxy(passenger["reference"])
+                confirmed_passengers.append(passenger_p)
 
         # Commiting        
         self.logger.debug(f'Started commit from {ride["id"]}')
@@ -336,12 +351,8 @@ class Server(object):
             print("response:",response)
             if response:
                 self.logger.debug(f'{p} - Payment confirmed')
-        
-        # Confirm notification to driver
-        driver = self.getClient(ride["name"])
-        driver_p = Pyro4.Proxy(driver["reference"])
-        driver_p.confirmRide( True, ride["id"])
 
+        return True
 
     def checkNotify(self, new_client, new_sub):
         """
@@ -373,7 +384,6 @@ class Server(object):
             
             if matches != []:
                 for match in matches:
-                    print("to aqui")
                     self.chargeRide(new_client["name"])
                     match['current_passengers'].append(new_client["name"])
 
@@ -396,26 +406,22 @@ class Server(object):
 
             if matches != []:
                 for match in matches:
+                    print(new_sub)
+                    print(new_client)
                     if len(new_sub['current_passengers']) < new_sub['required_passengers']:
-                        print("aqui to")
                         self.chargeRide(match["name"])
                         new_sub['current_passengers'].append(match["name"])
 
                         if len(new_sub['current_passengers']) == new_sub['required_passengers']:
-                            self.commitRide(new_sub)
+                            if (self.commitRide(new_sub)):
+                                driver = self.getClient(new_client["name"])
+                                driver_p = Pyro4.Proxy(driver["reference"])
+                                passengers = []
+                                for passenger in new_sub['current_passengers']:
+                                    aux = self.getClient(passenger)
+                                    passengers.append({"name": aux['name'],"contact": aux['contact']})
+                                driver_p.notifyCommitedRide(passengers)
 
-                            driver = self.getClient(new_client["name"])
-                            driver_p = Pyro4.Proxy(driver["reference"])
-                            passengers = []
-                            for passenger in driver['current_passengers']:
-                                aux = self.getClient(passenger)
-                                passengers.append(aux['name'], aux['contact'])
-                            driver_p.notifyCommitedRide(passengers)
-
-                        passenger = self.getClient(match["name"])
-
-                        passenger_p = Pyro4.Proxy(passenger["reference"])
-                        passenger_p.notifyAvailableDriver(new_client["name"], new_client["contact"])
 
         pickledump(self.clients, "clients")
         pickledump(self.rides, "rides")

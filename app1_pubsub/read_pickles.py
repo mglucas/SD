@@ -26,18 +26,10 @@ def pickleload(name, direct_path=None):
 
 
 print("==================================")
-# if Path("clients.pickle").is_file():
-#     print(pickleload("clients"))
-# if Path("current_id.pickle").is_file():
-#     print(pickleload("current_id"))
-# if Path("requests.pickle").is_file():
-#     print(pickleload("requests"))
-# if Path("rides.pickle").is_file():
-#      print(pickleload("rides"))
-if Path("a_bank_account.pickle").is_file():
-     print(pickleload("a_bank_account"))
-if Path("b_bank_account.pickle").is_file():
-     print(pickleload("b_bank_account"))
-if Path("c_bank_account.pickle").is_file():
-     print(pickleload("c_bank_account"))
+if Path("mega_bank_account.pickle").is_file():
+     print(pickleload("mega_bank_account"))
+if Path("victor_bank_account.pickle").is_file():
+     print(pickleload("victor_bank_account"))
+if Path("cris_bank_account.pickle").is_file():
+     print(pickleload("cris_bank_account"))
 print("==================================")

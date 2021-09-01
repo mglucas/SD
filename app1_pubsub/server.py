@@ -244,13 +244,13 @@ class Server(object):
                 "current_passengers"  : []
             })
 
-        self.checkNotify(client, message_dict)
-
         pickledump(self.clients, "clients")
         pickledump(self.rides, "rides")
         pickledump(self.requests, "requests")
         pickledump(self.current_id, "current_id")
 
+        self.checkNotify(client, message_dict)
+        
         return self.current_id
 
 
@@ -298,19 +298,11 @@ class Server(object):
                 self.logger.info('Voting unsuccessful')
                 for pas in confirmed_passengers:
                     pas.confirmRide( False, ride["id"])
-                # Excluding from ride
-                    try:
-                        print("Deleting",requests)
-                        requests = pickleload("requests")
-                        del_request = next(req for req in requests if ( req["name"] == passenger["name"] and 
-                                                                    req["origin"] == passenger["origin"] and
-                                                                    req["destination"] == passenger["destination"] and
-                                                                    req["date"] == passenger["date"]))
-                        requests.remove(del_request)
-                        print("New Requests",requests)
-                        pickledump(self.requests, "requests")
-                    except:
-                        print("Already deleted!")
+                    ride['current_passengers'].remove(p)
+                    # Excluding from ride
+                    matches = self.getAvailableRequests(ride["origin"], ride["destination"], ride["date"])
+                    del_request = next((req for req in matches if req["name"] == p), None)
+                    self.delSubscription(del_request["id"])
 
                 return False
             confirmed_passengers.append(passenger_p)
@@ -319,14 +311,22 @@ class Server(object):
         # Commiting        
         self.logger.debug(f'Started commit from {ride["id"]}')
 
+        self.logger.info(f'Charging clients')
         for passenger in ride['current_passengers']:
             client_bank = pickleload(f"{passenger}_bank_account")
             client = self.getClient(passenger)
-            
             # aux['balance'] -= 5  # would not guarantee atomicity
             client_bank['balance'] = client['balance']
             pickledump(client_bank, f"{passenger}_bank_account")
-        
+        self.logger.info(f'Charged clients')
+
+        self.logger.debug(f'Paying driver {ride["name"]}')
+        driver_bank = pickleload(f"{ride['name']}_bank_account")
+        driver = self.getClient(ride["name"])
+        driver_bank['balance'] += 5*len(ride["current_passengers"])
+        pickledump(driver_bank, f"{ride['name']}_bank_account")
+        self.logger.debug(f'Paid driver {ride["name"]}')
+
         self.logger.debug(f'Finished commit from {ride["id"]}')
 
         # Two-phase commit - 2nd phase 
@@ -336,6 +336,11 @@ class Server(object):
             print("response:",response)
             if response:
                 self.logger.debug(f'{p} - Payment confirmed')
+        
+        # Confirm notification to driver
+        driver = self.getClient(ride["name"])
+        driver_p = Pyro4.Proxy(driver["reference"])
+        driver_p.confirmRide( True, ride["id"])
 
 
     def checkNotify(self, new_client, new_sub):
@@ -356,12 +361,19 @@ class Server(object):
         Returns:
         - None
         """
+
+        self.clients = pickleload("clients")
+        self.rides = pickleload("rides")
+        self.requests = pickleload("requests")
+        self.current_id = pickleload("current_id")
+
         # A new request for a ride was added
         if len(new_sub) == 5:
             matches = self.getAvailableRides(new_sub["origin"], new_sub["destination"], new_sub["date"])
             
             if matches != []:
                 for match in matches:
+                    print("to aqui")
                     self.chargeRide(new_client["name"])
                     match['current_passengers'].append(new_client["name"])
 
@@ -385,6 +397,7 @@ class Server(object):
             if matches != []:
                 for match in matches:
                     if len(new_sub['current_passengers']) < new_sub['required_passengers']:
+                        print("aqui to")
                         self.chargeRide(match["name"])
                         new_sub['current_passengers'].append(match["name"])
 
@@ -403,6 +416,11 @@ class Server(object):
 
                         passenger_p = Pyro4.Proxy(passenger["reference"])
                         passenger_p.notifyAvailableDriver(new_client["name"], new_client["contact"])
+
+        pickledump(self.clients, "clients")
+        pickledump(self.rides, "rides")
+        pickledump(self.requests, "requests")
+        pickledump(self.current_id, "current_id")
     
     @Pyro4.expose
     def getAvailableRides(self, origin, destination, date):

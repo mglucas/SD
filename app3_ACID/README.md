@@ -1,4 +1,4 @@
-# Application 1 - Publish and Subscriber
+# Application 3 - ACID
 
 ## RideTogether
 

@@ -311,8 +311,11 @@ class Server(object):
                         matches = self.getAvailableRequests(ride["origin"], ride["destination"], ride["date"])
                         del_request = next((req for req in matches if req["name"] == p), None)
                         self.delSubscription(del_request["id"])
-
+            
                     return False
+                else:
+                    self.chargeRide(p)
+
                 confirmed_passengers.append(passenger_p)
             self.logger.info('Voting successful')
 
@@ -384,7 +387,7 @@ class Server(object):
             
             if matches != []:
                 for match in matches:
-                    self.chargeRide(new_client["name"])
+                    
                     match['current_passengers'].append(new_client["name"])
 
                     if len(match['current_passengers']) == match['required_passengers']:
